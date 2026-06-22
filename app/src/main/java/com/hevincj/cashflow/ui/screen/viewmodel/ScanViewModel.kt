@@ -1,0 +1,393 @@
+package com.hevincj.cashflow.ui.screen.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.hevincj.cashflow.domain.models.ReceiptScanResult
+import com.hevincj.cashflow.domain.models.ScanResult
+import com.hevincj.cashflow.domain.models.Transaction
+import com.hevincj.cashflow.domain.models.UpiQrResult
+import com.hevincj.cashflow.domain.models.TransactionCategory
+import com.hevincj.cashflow.domain.models.TransactionType
+import com.hevincj.cashflow.domain.repository.ScanRepository
+import com.hevincj.cashflow.domain.repository.TransactionRepository
+import com.hevincj.cashflow.ui.screen.state.ScanUiState
+import com.hevincj.cashflow.utils.isProductValid
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.UUID
+import javax.inject.Inject
+
+sealed interface ScanEvent {
+    object BeepAndVibrate : ScanEvent
+    object Vibrate : ScanEvent
+}
+
+@HiltViewModel
+class ScanViewModel @Inject constructor(
+    private val scanRepository: ScanRepository,
+    private val transactionRepository: TransactionRepository
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(ScanUiState())
+    val state: StateFlow<ScanUiState> = _state.asStateFlow()
+
+    private val _eventFlow = MutableSharedFlow<ScanEvent>(extraBufferCapacity = 64)
+    val eventFlow: SharedFlow<ScanEvent> = _eventFlow.asSharedFlow()
+
+    private val lastScannedMap = mutableMapOf<String, Long>()
+    private var lastGlobalScanTime = 0L
+    private var lastScannedBarcode: String? = null
+    private var consecutiveScanCount = 0
+
+    fun onBarcodeScanned(barcode: String) {
+        if (barcode.length < 12 || !barcode.all { it.isDigit() }) return
+
+        val currentTime = System.currentTimeMillis()
+
+        // 1. Global Scan Cooldown (1.5 seconds)
+        if (currentTime - lastGlobalScanTime < 1500) return
+
+        // 2. Per-barcode Cooldown (2 seconds)
+        val lastTime = lastScannedMap[barcode] ?: 0L
+        if (currentTime - lastTime <= 2000) return
+
+        // 3. Consecutive Frame Verification (3 frames)
+        if (barcode == lastScannedBarcode) {
+            consecutiveScanCount++
+        } else {
+            lastScannedBarcode = barcode
+            consecutiveScanCount = 1
+        }
+
+        if (consecutiveScanCount < 3) return
+
+        // Confirmed scan! Reset stabilization counters and update cooldown times
+        consecutiveScanCount = 0
+        lastScannedBarcode = null
+        lastGlobalScanTime = currentTime
+        lastScannedMap[barcode] = currentTime
+
+        val currentState = _state.value
+        if (currentState.addBarcodeOnce) {
+            if (currentState.scannedCodes.contains(barcode)) {
+                // If already scanned, ignore subsequent scans (return immediately, do not toggle/delete)
+                return
+            } else {
+                // Add
+                _state.update { state ->
+                    val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
+                    val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
+                    state.copy(
+                        scannedCodes = updatedCodes,
+                        resolvingCodes = updatedResolving
+                    )
+                }
+                _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
+                updateCalculatedSum()
+
+                // Real-time lookup
+                viewModelScope.launch {
+                    try {
+                        val result = scanRepository.lookupBarcode(barcode)
+                        if (result != null) {
+                            _state.update { state ->
+                                val updatedProducts = state.scannedProducts.toMutableMap().apply {
+                                    put(barcode, result)
+                                }
+                                state.copy(scannedProducts = updatedProducts)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // Safe fallback
+                    } finally {
+                        _state.update { state ->
+                            val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
+                            state.copy(resolvingCodes = finalResolving)
+                        }
+                        updateCalculatedSum()
+                    }
+                }
+            }
+        } else {
+            // Add multiple times
+            _state.update { state ->
+                val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
+                val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
+                state.copy(
+                    scannedCodes = updatedCodes,
+                    resolvingCodes = updatedResolving
+                )
+            }
+            _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
+            updateCalculatedSum()
+
+            // Real-time lookup
+            viewModelScope.launch {
+                try {
+                    val result = scanRepository.lookupBarcode(barcode)
+                    if (result != null) {
+                        _state.update { state ->
+                            val updatedProducts = state.scannedProducts.toMutableMap().apply {
+                                put(barcode, result)
+                            }
+                            state.copy(scannedProducts = updatedProducts)
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Safe fallback
+                } finally {
+                    _state.update { state ->
+                        val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
+                        state.copy(resolvingCodes = finalResolving)
+                    }
+                    updateCalculatedSum()
+                }
+            }
+        }
+    }
+
+    fun onAmountChanged(amount: String) {
+        _state.update { state ->
+            state.copy(
+                commonAmountString = amount,
+                isAmountEditedByUser = true
+            )
+        }
+    }
+
+    fun onTitleChanged(title: String) {
+        _state.update { state ->
+            state.copy(commonTitle = title)
+        }
+    }
+
+    fun onAddBarcodeOnceChanged(enabled: Boolean) {
+        _state.update { state ->
+            state.copy(addBarcodeOnce = enabled)
+        }
+    }
+
+    fun onClearAll() {
+        _state.update { state ->
+            state.copy(
+                scannedCodes = emptyList(),
+                commonAmountString = "",
+                isAmountEditedByUser = false
+            )
+        }
+    }
+
+    fun onRemoveBarcode(barcode: String) {
+        _state.update { state ->
+            val updatedCodes = state.scannedCodes.toMutableList().apply { remove(barcode) }
+            state.copy(scannedCodes = updatedCodes)
+        }
+        updateCalculatedSum()
+    }
+
+    fun onStartEditingProduct(code: String, name: String) {
+        _state.update { state ->
+            state.copy(
+                editingCode = code,
+                editingName = name
+            )
+        }
+    }
+
+    fun onEditingNameChanged(name: String) {
+        _state.update { state ->
+            state.copy(editingName = name)
+        }
+    }
+
+    fun onSaveEditedProduct() {
+        _state.update { state ->
+            val code = state.editingCode ?: return@update state
+            val currentResult = state.scannedProducts[code]
+            val updatedProducts = state.scannedProducts.toMutableMap().apply {
+                put(code, ScanResult(
+                    barcode = code,
+                    productName = state.editingName,
+                    category = currentResult?.category ?: "Others",
+                    price = currentResult?.price,
+                    currency = currentResult?.currency
+                ))
+            }
+            state.copy(
+                scannedProducts = updatedProducts,
+                editingCode = null,
+                editingName = ""
+            )
+        }
+        updateCalculatedSum()
+    }
+
+    fun onCancelEditingProduct() {
+        _state.update { state ->
+            state.copy(
+                editingCode = null,
+                editingName = ""
+            )
+        }
+    }
+
+    private fun updateCalculatedSum() {
+        val currentState = _state.value
+        val sum = currentState.scannedCodes.sumOf { code ->
+            currentState.scannedProducts[code]?.price ?: 24.50
+        }
+        _state.update { state ->
+            if (!state.isAmountEditedByUser) {
+                val amountStr = if (sum > 0) String.format(java.util.Locale.US, "%.2f", sum) else ""
+                state.copy(commonAmountString = amountStr)
+            } else {
+                state
+            }
+        }
+    }
+
+    fun saveBatchTransaction() {
+        val currentState = _state.value
+        if (currentState.scannedCodes.isEmpty()) return
+
+        _state.update { state -> state.copy(isSaving = true) }
+
+        viewModelScope.launch {
+            val finalCodes = if (currentState.addBarcodeOnce) {
+                currentState.scannedCodes.distinct()
+            } else {
+                currentState.scannedCodes.toList()
+            }
+
+            // Look up any missing barcodes from backend as a safety net
+            val scannedProductsMutable = currentState.scannedProducts.toMutableMap()
+            val missingBarcodes = finalCodes.filter { it !in scannedProductsMutable }
+            if (missingBarcodes.isNotEmpty()) {
+                try {
+                    val results = scanRepository.lookupBatchBarcodes(missingBarcodes)
+                    results.forEach {
+                        if (it.barcode != null) {
+                            scannedProductsMutable[it.barcode] = it
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Safe fallback
+                }
+            }
+
+            val savedSum = finalCodes.sumOf { scannedProductsMutable[it]?.price ?: 24.50 }
+            val totalAmount = currentState.commonAmountString.toDoubleOrNull() ?: savedSum
+            val transactionTitle = if (currentState.commonTitle.isNotBlank()) {
+                currentState.commonTitle
+            } else {
+                val names = finalCodes.mapNotNull { code ->
+                    val name = scannedProductsMutable[code]?.productName
+                    if (isProductValid(name, code)) name else null
+                }.distinct()
+                if (names.isNotEmpty()) names.joinToString(", ") else "Batch Scanned Items (${finalCodes.size})"
+            }
+
+            val firstCategoryStr = finalCodes.mapNotNull { scannedProductsMutable[it]?.category }.firstOrNull()
+            val category = if (firstCategoryStr != null) {
+                TransactionCategory.fromString(firstCategoryStr)
+            } else {
+                TransactionCategory.GROCERIES
+            }
+
+            val barcodeDetails = finalCodes.joinToString("; ") { code ->
+                val name = scannedProductsMutable[code]?.productName
+                val displayName = if (isProductValid(name, code)) name!! else "Unknown Product"
+                "$displayName ($code)"
+            }
+            val description = "Batch scanned barcodes: $barcodeDetails"
+
+            val transaction = Transaction(
+                id = UUID.randomUUID().toString(),
+                title = transactionTitle.take(50),
+                timestamp = System.currentTimeMillis(),
+                amount = -totalAmount,
+                icon = category.icon,
+                iconBgColor = category.iconBgColor,
+                type = TransactionType.EXPENSE,
+                category = category,
+                description = description,
+                isSynced = false
+            )
+            try {
+                transactionRepository.insertTransaction(transaction)
+                _state.update { state -> state.copy(saveSuccess = true, isSaving = false) }
+            } catch (e: Exception) {
+                _state.update { state -> state.copy(errorMessage = "Failed to save transaction: ${e.message}", isSaving = false) }
+            }
+        }
+    }
+
+    fun analyzeReceipt(bytes: ByteArray, tempApiKey: String, onResult: (ReceiptScanResult?) -> Unit) {
+        _state.update { state -> state.copy(isAnalyzing = true) }
+        if (tempApiKey.isNotEmpty()) {
+            System.setProperty("GEMINI_API_KEY", tempApiKey)
+        }
+        viewModelScope.launch {
+            val result = scanRepository.analyzeReceipt(bytes)
+            _state.update { state -> state.copy(isAnalyzing = false) }
+            onResult(result)
+        }
+    }
+
+    fun lookupSingleBarcode(barcode: String, onResult: (ScanResult?) -> Unit) {
+        viewModelScope.launch {
+            val result = scanRepository.lookupBarcode(barcode)
+            onResult(result)
+        }
+    }
+
+    fun generateUpiQr(amount: Double?, note: String?, onResult: (UpiQrResult?) -> Unit) {
+        viewModelScope.launch {
+            val result = scanRepository.generateUpiQr(amount, note)
+            onResult(result)
+        }
+    }
+
+    fun sendUpiPayment(
+        vpa: String,
+        name: String,
+        amount: Double,
+        note: String?,
+        rrn: String? = null,
+        onComplete: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val finalRrn = rrn ?: (System.currentTimeMillis().toString().takeLast(8) + (1000..9999).random().toString())
+                val description = "Sent via UPI\nTo: $name ($vpa)\nRef: $finalRrn\nNote: ${note ?: "—"}"
+                val transaction = Transaction(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = "UPI · $name",
+                    timestamp = System.currentTimeMillis(),
+                    amount = -amount,
+                    icon = TransactionCategory.OTHERS.icon,
+                    iconBgColor = TransactionCategory.OTHERS.iconBgColor,
+                    type = TransactionType.EXPENSE,
+                    category = TransactionCategory.OTHERS,
+                    description = description,
+                    isSynced = false
+                )
+                transactionRepository.insertTransaction(transaction)
+                onComplete(true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onComplete(false)
+            }
+        }
+    }
+}
+
