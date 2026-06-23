@@ -39,7 +39,10 @@ class TransactionRepositoryImpl @Inject constructor(
             
             unsyncedLocal.forEach { entity ->
                 val action = if (entity.serverId != null && entity.serverId in pendingDeletes) "delete" else "upsert"
-                syncManager.syncSpecificTransaction(action, entity.id, entity.serverId)
+                val error = syncManager.syncSpecificTransaction(action, entity.id, entity.serverId)
+                if (error != null) {
+                    return@withContext error
+                }
             }
 
             // 2. Fetch remote transactions

@@ -12,6 +12,8 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mock
@@ -85,7 +87,7 @@ class TransactionSyncManagerTest {
 
         val result = syncManager.syncSpecificTransaction("upsert", 10, null)
 
-        assertTrue(result)
+        assertNull(result)
         verify(api).createTransaction(any())
         val captor = argumentCaptor<TransactionEntity>()
         verify(dao).insertTransaction(captor.capture())
@@ -104,7 +106,7 @@ class TransactionSyncManagerTest {
 
         val result = syncManager.syncSpecificTransaction("upsert", 10, "server_123")
 
-        assertTrue(result)
+        assertNull(result)
         verify(api).updateTransaction(eq("server_123"), any())
         val captor = argumentCaptor<TransactionEntity>()
         verify(dao).insertTransaction(captor.capture())
@@ -120,7 +122,7 @@ class TransactionSyncManagerTest {
 
         val result = syncManager.syncSpecificTransaction("delete", -1, "server_123")
 
-        assertTrue(result)
+        assertNull(result)
         verify(api).deleteTransaction(eq("server_123"))
     }
 
@@ -130,7 +132,7 @@ class TransactionSyncManagerTest {
 
         val result = syncManager.syncSpecificTransaction("delete", -1, "server_123")
 
-        assertTrue(result)
+        assertNull(result)
         verify(api).deleteTransaction(eq("server_123"))
     }
 
@@ -142,7 +144,7 @@ class TransactionSyncManagerTest {
 
         val result = syncManager.syncSpecificTransaction("upsert", 10, null)
 
-        assertFalse(result)
+        assertNotNull(result)
         verify(api).createTransaction(any())
         verify(dao, never()).insertTransaction(any())
     }

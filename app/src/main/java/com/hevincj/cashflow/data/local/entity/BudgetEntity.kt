@@ -11,6 +11,8 @@ import androidx.room.PrimaryKey
 data class BudgetEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    val serverId: String? = null,
+    val isSynced: Boolean = false,
     val category: String,
     val monthlyLimit: Double,
     val month: Int,

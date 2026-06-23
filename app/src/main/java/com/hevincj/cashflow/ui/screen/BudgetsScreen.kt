@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -281,12 +282,23 @@ fun BudgetCard(
                         )
                     }
                     Column {
-                        Text(
-                            text = budget.category.displayName,
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = budget.category.displayName,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            if (!budget.isSynced) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Rounded.CloudOff,
+                                    contentDescription = "Not Synced",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                         Text(
                             text = if (budget.isExceeded) "Exceeded limit" else if (budget.isWarning) "Nearing limit" else "On track",
                             color = progressColor,
@@ -348,6 +360,7 @@ fun AddBudgetDialog(
     onDismiss: () -> Unit,
     onConfirm: (TransactionCategory, Double) -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     var selectedCategory by remember { mutableStateOf(TransactionCategory.FOOD) }
     var limitInput by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf("") }
@@ -475,7 +488,10 @@ fun AddBudgetDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(onClick = {
+                        keyboardController?.hide()
+                        onDismiss()
+                    }) {
                         Text("Cancel", color = TextSecondary)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -485,6 +501,7 @@ fun AddBudgetDialog(
                             if (limit == null || limit <= 0.0) {
                                 errorText = "Please enter a valid budget limit"
                             } else {
+                                keyboardController?.hide()
                                 onConfirm(selectedCategory, limit)
                             }
                         },

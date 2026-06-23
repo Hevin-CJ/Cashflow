@@ -56,3 +56,45 @@ data class CreditCardRequestDto(
     val cardHolder: String,
     val gradientColors: List<Long>
 )
+
+data class RecurringExpenseDto(
+    val id: String,
+    val userId: String,
+    val title: String,
+    val amount: Double,
+    val category: String,
+    val type: String,
+    val frequency: String,
+    val startDate: Long,
+    val lastProcessedDate: Long?,
+    val nextDueDate: Long,
+    val description: String?
+)
+
+data class RecurringExpenseRequestDto(
+    val title: String,
+    val amount: Double,
+    val category: String,
+    val type: String,
+    val frequency: String,
+    val startDate: Long,
+    val lastProcessedDate: Long?,
+    val nextDueDate: Long,
+    val description: String?
+)
+
+data class BudgetDto(
+    val id: String,
+    val userId: String,
+    val category: String,
+    val monthlyLimit: Double,
+    val month: Int,
+    val year: Int
+)
+
+data class BudgetRequestDto(
+    val category: String,
+    val monthlyLimit: Double,
+    val month: Int,
+    val year: Int
+)

@@ -8,38 +8,36 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 
-class SyncTransactionWorker(
+class SyncRecurringExpenseWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
-    interface SyncTransactionWorkerEntryPoint {
-        fun transactionSyncManager(): TransactionSyncManager
+    interface SyncRecurringExpenseWorkerEntryPoint {
+        fun recurringExpenseSyncManager(): RecurringExpenseSyncManager
     }
 
     override suspend fun doWork(): Result {
         return try {
-            val appContext = applicationContext
             val entryPoint = EntryPointAccessors.fromApplication(
-                appContext,
-                SyncTransactionWorkerEntryPoint::class.java
+                applicationContext,
+                SyncRecurringExpenseWorkerEntryPoint::class.java
             )
-            val syncManager = entryPoint.transactionSyncManager()
-            
+            val syncManager = entryPoint.recurringExpenseSyncManager()
+
             val action = inputData.getString("action") ?: "sync_all"
             val localId = inputData.getInt("local_id", -1)
             val serverId = inputData.getString("server_id")
 
-            val error = if (action == "sync_all") {
-                // Fallback to sync all (though deprecated, keep as a safe no-op or fallback)
-                null
+            val success = if (action == "sync_all") {
+                true
             } else {
-                syncManager.syncSpecificTransaction(action, localId, serverId)
+                syncManager.syncSpecificRecurringExpense(action, localId, serverId)
             }
-            
-            if (error == null) {
+
+            if (success) {
                 Result.success()
             } else {
                 if (runAttemptCount < 3) {

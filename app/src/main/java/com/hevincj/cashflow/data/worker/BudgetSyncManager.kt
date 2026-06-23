@@ -1,11 +1,9 @@
 package com.hevincj.cashflow.data.worker
 
-import com.hevincj.cashflow.data.local.dao.TransactionDao
-import com.hevincj.cashflow.data.local.entity.TransactionEntity
+import com.hevincj.cashflow.data.local.dao.BudgetDao
 import com.hevincj.cashflow.data.local.PendingDeleteManager
-import com.hevincj.cashflow.data.remote.api.TransactionApi
-import com.hevincj.cashflow.data.remote.models.TransactionRequestDto
-import kotlinx.coroutines.flow.first
+import com.hevincj.cashflow.data.remote.api.BudgetApi
+import com.hevincj.cashflow.data.remote.models.BudgetRequestDto
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.concurrent.ConcurrentHashMap
@@ -13,42 +11,40 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 @Singleton
-class TransactionSyncManager @Inject constructor(
-    private val dao: TransactionDao,
-    private val api: TransactionApi,
+class BudgetSyncManager @Inject constructor(
+    private val dao: BudgetDao,
+    private val api: BudgetApi,
     private val pendingDeleteManager: PendingDeleteManager
 ) {
-    private val transactionLocks = ConcurrentHashMap<Int, Mutex>()
+    private val budgetLocks = ConcurrentHashMap<Int, Mutex>()
     private val deleteLocks = ConcurrentHashMap<String, Mutex>()
 
-    suspend fun syncSpecificTransaction(action: String, localId: Int, serverId: String?): String? {
+    suspend fun syncSpecificBudget(action: String, localId: Int, serverId: String?): String? {
         try {
             if (action == "upsert" && localId != -1) {
-                val lock = transactionLocks.computeIfAbsent(localId) { Mutex() }
+                val lock = budgetLocks.computeIfAbsent(localId) { Mutex() }
                 return lock.withLock {
-                    val entity = dao.getAllTransactions().first().find { it.id == localId } ?: return null // Deleted locally, no need to upload
-                    if (entity.isSynced) return null // Already synced
+                    val entity = dao.getBudgetById(localId) ?: return null
+                    if (entity.isSynced) return null
 
-                    val requestDto = TransactionRequestDto(
-                        amount = kotlin.math.abs(entity.amount),
-                        type = entity.type,
+                    val requestDto = BudgetRequestDto(
                         category = entity.category,
-                        description = entity.description,
-                        barcode = entity.barcode,
-                        productName = entity.productName
+                        monthlyLimit = entity.monthlyLimit,
+                        month = entity.month,
+                        year = entity.year
                     )
 
                     if (entity.serverId != null) {
-                        val response = api.updateTransaction(entity.serverId, requestDto)
+                        val response = api.updateBudget(entity.serverId, requestDto)
                         if (response.isSuccessful) {
-                            dao.insertTransaction(entity.copy(isSynced = true))
+                            dao.insertBudget(entity.copy(isSynced = true))
                             return null
                         } else if (response.code() == 404) {
-                            // Server-side ID not found (e.g. server DB cleared). Fallback to creating a new transaction.
-                            val createResponse = api.createTransaction(requestDto)
+                            // Server-side ID not found (e.g. server DB cleared). Fallback to creating a new budget.
+                            val createResponse = api.createBudget(requestDto)
                             if (createResponse.isSuccessful) {
                                 createResponse.body()?.let { remoteDto ->
-                                    dao.insertTransaction(
+                                    dao.insertBudget(
                                         entity.copy(
                                             isSynced = true,
                                             serverId = remoteDto.id
@@ -57,16 +53,16 @@ class TransactionSyncManager @Inject constructor(
                                 }
                                 return null
                             } else {
-                                return "Failed to sync transaction (create fallback after 404): ${createResponse.message()} (code ${createResponse.code()})"
+                                return "Failed to sync budget (create fallback after 404): ${createResponse.message()} (code ${createResponse.code()})"
                             }
                         } else {
-                            return "Failed to update transaction: ${response.message()} (code ${response.code()})"
+                            return "Failed to update budget: ${response.message()} (code ${response.code()})"
                         }
                     } else {
-                        val response = api.createTransaction(requestDto)
+                        val response = api.createBudget(requestDto)
                         if (response.isSuccessful) {
                             response.body()?.let { remoteDto ->
-                                dao.insertTransaction(
+                                dao.insertBudget(
                                     entity.copy(
                                         isSynced = true,
                                         serverId = remoteDto.id
@@ -75,19 +71,19 @@ class TransactionSyncManager @Inject constructor(
                             }
                             return null
                         } else {
-                            return "Failed to create transaction: ${response.message()} (code ${response.code()})"
+                            return "Failed to create budget: ${response.message()} (code ${response.code()})"
                         }
                     }
                 }
             } else if (action == "delete" && serverId != null) {
                 val lock = deleteLocks.computeIfAbsent(serverId) { Mutex() }
                 return lock.withLock {
-                    val response = api.deleteTransaction(serverId)
+                    val response = api.deleteBudget(serverId)
                     if (response.isSuccessful || response.code() == 404) {
-                        pendingDeleteManager.removePendingDeletion(serverId)
+                        pendingDeleteManager.removePendingBudgetDeletion(serverId)
                         return null
                     }
-                    return "Failed to delete transaction: ${response.message()} (code ${response.code()})"
+                    return "Failed to delete budget: ${response.message()} (code ${response.code()})"
                 }
             }
             return null

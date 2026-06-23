@@ -27,13 +27,17 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 import com.hevincj.cashflow.domain.repository.TransactionRepository
+import com.hevincj.cashflow.domain.usecase.GetBudgetsWithSpendingUseCase
+import com.hevincj.cashflow.domain.repository.BudgetRepository
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getTransactionsUseCase: GetTransactionsUseCase,
     private val addTransactionUseCase: AddTransactionUseCase,
     private val repository: TransactionRepository,
-    private val networkMonitor: com.hevincj.cashflow.utils.NetworkMonitor
+    private val networkMonitor: com.hevincj.cashflow.utils.NetworkMonitor,
+    private val getBudgetsWithSpendingUseCase: GetBudgetsWithSpendingUseCase,
+    private val budgetRepository: BudgetRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -46,6 +50,18 @@ class HomeViewModel @Inject constructor(
     init {
         loadTransactions()
         observeNetworkChanges()
+        observeBudgets()
+    }
+
+    private fun observeBudgets() {
+        viewModelScope.launch {
+            val currentMonth = java.time.YearMonth.now()
+            getBudgetsWithSpendingUseCase(currentMonth.monthValue, currentMonth.year)
+                .collect { budgets ->
+                    val exceeded = budgets.filter { it.isExceeded }
+                    _state.value = _state.value.copy(exceededBudgets = exceeded)
+                }
+        }
     }
 
     private fun observeNetworkChanges() {
@@ -56,11 +72,7 @@ class HomeViewModel @Inject constructor(
                     android.util.Log.d("CashFlowDebug", "Network connectivity state changed: isConnected = $isConnected")
                     if (isConnected) {
                         val currentError = _state.value.error
-                        if (currentError == "No internet connection" ||
-                            currentError == "Failed to connect to the server." ||
-                            currentError == "Connection timed out." ||
-                            currentError == "Server is unreachable. Please try again later."
-                        ) {
+                        if (currentError != null) {
                             _state.value = _state.value.copy(error = null)
                             refreshSync()
                         }
@@ -83,8 +95,10 @@ class HomeViewModel @Inject constructor(
                 _state.value = _state.value.copy(isLoading = true)
             }
             val syncError = repository.syncTransactions(limit)
+            val budgetSyncError = budgetRepository.syncBudgets()
             isInitialSyncRunning = false
-            _state.value = _state.value.copy(error = syncError, isLoading = false)
+            val finalError = syncError ?: budgetSyncError
+            _state.value = _state.value.copy(error = finalError, isLoading = false)
         }
     }
 

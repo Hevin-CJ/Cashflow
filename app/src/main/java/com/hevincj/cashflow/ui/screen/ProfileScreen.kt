@@ -40,6 +40,7 @@ data class ProfileMenuItem(
 val menuItems = listOf(
     ProfileMenuItem("Account Info", Icons.Default.Person, Color(0xFF635BFF)),
     ProfileMenuItem("Security Code", Icons.Default.Shield, Color(0xFF65C466)),
+    ProfileMenuItem("Subscriptions & Recurring", Icons.Default.Autorenew, Color(0xFFFF9F1C)),
     ProfileMenuItem("Privacy Policy", Icons.Default.Lock, Color(0xFF3B5973)),
     ProfileMenuItem("Settings", Icons.Default.Settings, Color(0xFF32827A)),
     ProfileMenuItem("Logout", Icons.AutoMirrored.Filled.ExitToApp, Color(0xFFE93B3A))
@@ -152,6 +153,7 @@ fun ProfileScreen(
                     when (item.title) {
                         "Logout" -> showLogoutDialog = true
                         "Settings" -> showSettingsDialog = true
+                        "Subscriptions & Recurring" -> rootNavController.navigate("subscription_manager")
                     }
                 }
             )

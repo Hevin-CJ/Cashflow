@@ -1,11 +1,29 @@
 package com.hevincj.cashflow.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.PersonOutline
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,22 +36,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.hevincj.cashflow.ui.screen.StatisticsScreen
 import com.hevincj.cashflow.ui.theme.BackgroundGray
 import com.hevincj.cashflow.ui.theme.BottomBarIconSelectedColor
 import com.hevincj.cashflow.ui.theme.BottomBarIconUnselectedColor
-import com.hevincj.cashflow.ui.theme.PhoneBackgroundColor
-import com.hevincj.cashflow.ui.theme.PrimaryGradient
 import com.hevincj.cashflow.ui.theme.CardBackground
+import com.hevincj.cashflow.ui.theme.PrimaryGradient
 import com.hevincj.cashflow.utils.SmoothNotchedShape
-
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.hevincj.cashflow.ui.screen.viewmodel.HomeViewModel
-import com.hevincj.cashflow.ui.screen.viewmodel.StatsViewModel
-import com.hevincj.cashflow.ui.screen.viewmodel.CardsViewModel
-import com.hevincj.cashflow.ui.screen.viewmodel.ProfileViewModel
-
-import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
 
 @Composable
 fun MainScreen(

@@ -15,3 +15,8 @@
 local.properties
 /graphify-out
 /.agents
+
+# Agent Framework
+.env
+.tmp/*
+!.tmp/.gitkeep

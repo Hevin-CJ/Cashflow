@@ -8,6 +8,8 @@ import com.hevincj.cashflow.data.remote.api.SignatureInterceptor
 import com.hevincj.cashflow.data.remote.api.TransactionApi
 import com.hevincj.cashflow.data.remote.api.CardsApi
 import com.hevincj.cashflow.data.remote.api.ScanApi
+import com.hevincj.cashflow.data.remote.api.BudgetApi
+import com.hevincj.cashflow.data.remote.api.RecurringExpenseApi
 import com.hevincj.cashflow.BuildConfig
 
 import dagger.Module
@@ -97,5 +99,17 @@ object NetworkModule {
     @Singleton
     fun provideScanApi(retrofit: Retrofit): ScanApi {
         return retrofit.create(ScanApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideRecurringExpenseApi(retrofit: Retrofit): RecurringExpenseApi {
+        return retrofit.create(RecurringExpenseApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideBudgetApi(retrofit: Retrofit): BudgetApi {
+        return retrofit.create(BudgetApi::class.java)
     }
 }

@@ -27,6 +27,17 @@ import com.hevincj.cashflow.data.worker.TransactionSyncScheduler
 import com.hevincj.cashflow.data.worker.TransactionSyncManager
 import com.hevincj.cashflow.domain.repository.ScanRepository
 
+import com.hevincj.cashflow.data.local.dao.RecurringExpenseDao
+import com.hevincj.cashflow.data.remote.api.RecurringExpenseApi
+import com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
+import com.hevincj.cashflow.data.repository.RecurringExpenseRepositoryImpl
+import com.hevincj.cashflow.data.worker.RecurringExpenseSyncScheduler
+import com.hevincj.cashflow.data.worker.RecurringExpenseSyncManager
+
+import com.hevincj.cashflow.data.remote.api.BudgetApi
+import com.hevincj.cashflow.data.worker.BudgetSyncScheduler
+import com.hevincj.cashflow.data.worker.BudgetSyncManager
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -99,9 +110,19 @@ object AppModule {
     @Provides
     @Singleton
     fun provideBudgetRepository(
-        dao: com.hevincj.cashflow.data.local.dao.BudgetDao
+        dao: com.hevincj.cashflow.data.local.dao.BudgetDao,
+        api: BudgetApi,
+        syncScheduler: BudgetSyncScheduler,
+        pendingDeleteManager: PendingDeleteManager,
+        syncManager: BudgetSyncManager
     ): com.hevincj.cashflow.domain.repository.BudgetRepository {
-        return com.hevincj.cashflow.data.repository.BudgetRepositoryImpl(dao)
+        return com.hevincj.cashflow.data.repository.BudgetRepositoryImpl(
+            dao = dao,
+            api = api,
+            syncScheduler = syncScheduler,
+            pendingDeleteManager = pendingDeleteManager,
+            syncManager = syncManager
+        )
     }
 
     @Provides
@@ -117,5 +138,23 @@ object AppModule {
         scanApi: com.hevincj.cashflow.data.remote.api.ScanApi
     ): ScanRepository {
         return ScanRepositoryImpl(context, scanApi)
+    }
+
+    @Provides
+    @Singleton
+    fun provideRecurringExpenseDao(db: CashFlowDatabase): RecurringExpenseDao {
+        return db.recurringExpenseDao
+    }
+
+    @Provides
+    @Singleton
+    fun provideRecurringExpenseRepository(
+        dao: RecurringExpenseDao,
+        api: RecurringExpenseApi,
+        syncScheduler: RecurringExpenseSyncScheduler,
+        pendingDeleteManager: PendingDeleteManager,
+        syncManager: RecurringExpenseSyncManager
+    ): RecurringExpenseRepository {
+        return RecurringExpenseRepositoryImpl(dao, api, syncScheduler, pendingDeleteManager, syncManager)
     }
 }

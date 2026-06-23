@@ -1,5 +1,6 @@
 package com.hevincj.cashflow.ui.screen
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -62,12 +63,12 @@ private val DATE_RANGE_END_FORMATTER = java.time.format.DateTimeFormatter.ofPatt
 
 
 @Composable
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 fun StatisticsScreen(
     innerPadding: PaddingValues,
     viewModel: StatsViewModel = hiltViewModel()
 ) {
-    // collectAsStateWithLifecycle pauses collection when the screen is backgrounded
-    // (activity paused / screen off), preventing unnecessary background recomposition.
+
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var currentTab by remember { mutableStateOf(0) } // 0 = Overview, 1 = Budgets
@@ -78,11 +79,11 @@ fun StatisticsScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(bottom = innerPadding.calculateBottomPadding())
-    ) { localPadding ->
+    ) {localPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding() + localPadding.calculateTopPadding())
+                .padding(top = innerPadding.calculateTopPadding())
         ) {
             Box(
                 modifier = Modifier

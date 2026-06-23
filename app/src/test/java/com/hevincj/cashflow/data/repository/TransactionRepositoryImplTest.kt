@@ -312,7 +312,7 @@ class TransactionRepositoryImplTest {
             .thenReturn(flowOf(listOf(syncedLocal)))
         
         // Stub the syncManager delegator
-        whenever(syncManager.syncSpecificTransaction(any(), any(), any())).thenReturn(true)
+        whenever(syncManager.syncSpecificTransaction(any(), any(), any())).thenReturn(null)
         
         // Mock getTransactions for the second step
         val remoteDto = TransactionDto("server_matched", "user", 50.0, "EXPENSE", "GROCERIES", "desc", 1000L)

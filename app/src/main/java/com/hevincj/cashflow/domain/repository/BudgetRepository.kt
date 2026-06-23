@@ -7,4 +7,5 @@ interface BudgetRepository {
     fun getBudgetsForMonth(month: Int, year: Int): Flow<List<Budget>>
     suspend fun setBudget(budget: Budget)
     suspend fun deleteBudget(category: String, month: Int, year: Int)
+    suspend fun syncBudgets(): String?
 }

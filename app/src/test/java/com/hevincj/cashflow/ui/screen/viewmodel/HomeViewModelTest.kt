@@ -17,6 +17,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Before
@@ -25,6 +26,8 @@ import org.junit.Test
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.any
+import org.mockito.kotlin.times
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
@@ -43,6 +46,12 @@ class HomeViewModelTest {
 
     @Mock
     lateinit var networkMonitor: NetworkMonitor
+
+    @Mock
+    lateinit var getBudgetsWithSpendingUseCase: com.hevincj.cashflow.domain.usecase.GetBudgetsWithSpendingUseCase
+
+    @Mock
+    lateinit var budgetRepository: com.hevincj.cashflow.domain.repository.BudgetRepository
 
     private lateinit var viewModel: HomeViewModel
 
@@ -78,6 +87,10 @@ class HomeViewModelTest {
         MockitoAnnotations.openMocks(this)
         whenever(getTransactionsUseCase.invoke()).thenReturn(flowOf(sampleTransactions))
         whenever(networkMonitor.isConnected).thenReturn(flowOf(true))
+        whenever(getBudgetsWithSpendingUseCase.invoke(any(), any())).thenReturn(flowOf(emptyList()))
+        runBlocking {
+            whenever(budgetRepository.syncBudgets()).thenReturn(null)
+        }
     }
 
     @Test
@@ -86,7 +99,9 @@ class HomeViewModelTest {
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
-            networkMonitor
+            networkMonitor,
+            getBudgetsWithSpendingUseCase,
+            budgetRepository
         )
         advanceUntilIdle()
 
@@ -104,7 +119,9 @@ class HomeViewModelTest {
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
-            networkMonitor
+            networkMonitor,
+            getBudgetsWithSpendingUseCase,
+            budgetRepository
         )
         advanceUntilIdle()
         
@@ -123,7 +140,9 @@ class HomeViewModelTest {
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
-            networkMonitor
+            networkMonitor,
+            getBudgetsWithSpendingUseCase,
+            budgetRepository
         )
         
         advanceUntilIdle()
@@ -141,7 +160,9 @@ class HomeViewModelTest {
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
-            networkMonitor
+            networkMonitor,
+            getBudgetsWithSpendingUseCase,
+            budgetRepository
         )
         
         advanceUntilIdle()
@@ -165,12 +186,57 @@ class HomeViewModelTest {
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
-            networkMonitor
+            networkMonitor,
+            getBudgetsWithSpendingUseCase,
+            budgetRepository
         )
         viewModel.refreshSync(force = true)
         
         val state = viewModel.state.value
         assertEquals(2, state.transactions.size)
         assertFalse(state.isLoading)
+    }
+
+    @Test
+    fun testRetrySyncsAndClearsErrorAndSyncsToRemote() = runTest {
+        // 1. Initial state: sync fails with an error
+        whenever(repository.syncTransactions(25)).thenReturn("Failed to sync transactions")
+        runBlocking {
+            whenever(budgetRepository.syncBudgets()).thenReturn("Failed to sync budgets")
+        }
+
+        viewModel = HomeViewModel(
+            getTransactionsUseCase,
+            addTransactionUseCase,
+            repository,
+            networkMonitor,
+            getBudgetsWithSpendingUseCase,
+            budgetRepository
+        )
+        // Trigger initial sync which fails
+        viewModel.refreshSync(force = true)
+        advanceUntilIdle()
+
+        // Verify the ViewModel has an error state initially
+        assertEquals("Failed to sync transactions", viewModel.state.value.error)
+
+        // 2. Change mocks so that the next sync succeeds
+        whenever(repository.syncTransactions(25)).thenReturn(null)
+        runBlocking {
+            whenever(budgetRepository.syncBudgets()).thenReturn(null)
+        }
+
+        // 3. Simulating user clicking Retry
+        viewModel.refreshSync(force = true)
+        advanceUntilIdle()
+
+        // Verify that retry is actually syncing (sync method called again)
+        org.mockito.Mockito.verify(repository, times(2)).syncTransactions(25)
+        runBlocking {
+            org.mockito.Mockito.verify(budgetRepository, times(2)).syncBudgets()
+        }
+
+        // Verify the error is removed/cleared from the home screen state
+        assertEquals(null, viewModel.state.value.error)
     }
 }

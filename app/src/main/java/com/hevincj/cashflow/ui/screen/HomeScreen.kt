@@ -35,6 +35,8 @@
     import androidx.compose.material.icons.rounded.ShoppingBag
     import androidx.compose.material.icons.rounded.Refresh
     import androidx.compose.material.icons.rounded.Warning
+    import androidx.compose.material.icons.rounded.CloudOff
+    import androidx.compose.material.icons.rounded.Close
     import androidx.compose.material3.DropdownMenu
     import androidx.compose.material3.DropdownMenuItem
     import androidx.compose.material3.MenuDefaults
@@ -199,6 +201,15 @@ import androidx.compose.runtime.rememberCoroutineScope
         listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState()
     ) {
         var showBatchItemsTransaction by remember { mutableStateOf<Transaction?>(null) }
+        var isSyncErrorDismissed by remember { mutableStateOf(false) }
+        var isBudgetWarningDismissed by remember { mutableStateOf(false) }
+
+        LaunchedEffect(uiState.error) {
+            isSyncErrorDismissed = false
+        }
+        LaunchedEffect(uiState.exceededBudgets) {
+            isBudgetWarningDismissed = false
+        }
 
         if (showBatchItemsTransaction != null) {
             val items = parseBatchDescription(showBatchItemsTransaction?.description)
@@ -291,7 +302,123 @@ import androidx.compose.runtime.rememberCoroutineScope
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            if (uiState.error != null && !isSyncErrorDismissed) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFF0F0))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = "Sync Error",
+                            tint = Color(0xFFE53935),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Sync Failure",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC62828)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = uiState.error ?: "",
+                                fontSize = 11.sp,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                        IconButton(
+                            onClick = onRetrySync,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Refresh,
+                                contentDescription = "Retry Sync",
+                                tint = Color(0xFFC62828),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { isSyncErrorDismissed = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Dismiss",
+                                tint = Color(0xFFC62828),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (uiState.exceededBudgets.isNotEmpty() && !isBudgetWarningDismissed) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFF3E0))
+                        .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = "Budget Exceeded Warning",
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            val message = if (uiState.exceededBudgets.size == 1) {
+                                val b = uiState.exceededBudgets.first()
+                                "You've exceeded your ${b.category.displayName} budget! ($${b.spent.toInt()}/$${b.monthlyLimit.toInt()})"
+                            } else {
+                                "You've exceeded ${uiState.exceededBudgets.size} budgets this month!"
+                            }
+                            Text(
+                                text = "Budget Exceeded",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE65100)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = message,
+                                fontSize = 11.sp,
+                                color = Color(0xFFEF6C00)
+                            )
+                        }
+                        IconButton(
+                            onClick = { isBudgetWarningDismissed = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Dismiss",
+                                tint = Color(0xFFE65100),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Fixed header
             Box(modifier = Modifier.padding(horizontal = 24.dp)) {
@@ -299,56 +426,6 @@ import androidx.compose.runtime.rememberCoroutineScope
                     isLoading = uiState.isLoading,
                     onSeeAllClick = onNavigateToAllTransactions
                 )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (uiState.error != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFFFF0F0))
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Warning,
-                            contentDescription = "Sync Error",
-                            tint = Color(0xFFE53935),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Sync Failure",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFC62828)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = uiState.error ?: "",
-                                fontSize = 12.sp,
-                                color = Color(0xFFD32F2F)
-                            )
-                        }
-                        IconButton(
-                            onClick = onRetrySync,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = "Retry Sync",
-                                tint = Color(0xFFC62828)
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -784,6 +861,15 @@ import androidx.compose.runtime.rememberCoroutineScope
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
+                        if (!transaction.isSynced) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.CloudOff,
+                                contentDescription = "Not Synced",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                         if (transaction.description?.contains("Batch scanned barcode") == true) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(

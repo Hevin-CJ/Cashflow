@@ -1,6 +1,9 @@
 package com.hevincj.cashflow.domain.models
 
 data class Budget(
+    val id: Int = 0,
+    val serverId: String? = null,
+    val isSynced: Boolean = false,
     val category: TransactionCategory,
     val monthlyLimit: Double,
     val spent: Double,       // derived / calculated

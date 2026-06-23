@@ -1,6 +1,7 @@
 package com.hevincj.cashflow.ui.screen.state
 
 import androidx.compose.runtime.Immutable
+import com.hevincj.cashflow.domain.models.Budget
 import com.hevincj.cashflow.domain.models.Transaction
 
 enum class BalanceRange(val displayName: String) {
@@ -17,5 +18,6 @@ data class HomeUiState(
     val totalExpense: Double = 0.0,
     val balanceRange: BalanceRange = BalanceRange.ALL_TIME,
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val exceededBudgets: List<Budget> = emptyList()
 )

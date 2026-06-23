@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.hevincj.cashflow.ui.screen.AddCardScreen
+import com.hevincj.cashflow.ui.screen.SubscriptionManagerScreen
 import com.hevincj.cashflow.ui.screen.AddTransactionScreen
 import com.hevincj.cashflow.ui.screen.AllTransactionsScreen
 import com.hevincj.cashflow.ui.screen.MainScreen
@@ -159,6 +160,9 @@ fun RootNavigation() {
         }
         composable("add_card") {
             AddCardScreen(navController = rootNavController)
+        }
+        composable("subscription_manager") {
+            SubscriptionManagerScreen(navController = rootNavController)
         }
     }
 }

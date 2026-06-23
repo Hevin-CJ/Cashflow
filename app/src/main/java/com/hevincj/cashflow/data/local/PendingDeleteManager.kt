@@ -28,4 +28,36 @@ class PendingDeleteManager @Inject constructor(
         current.remove(serverId)
         sharedPrefs.edit().putStringSet("pending_deletions", current).apply()
     }
+
+    fun getPendingRecurringDeletions(): Set<String> {
+        return sharedPrefs.getStringSet("pending_recurring_deletions", emptySet()) ?: emptySet()
+    }
+
+    fun addPendingRecurringDeletion(serverId: String) {
+        val current = getPendingRecurringDeletions().toMutableSet()
+        current.add(serverId)
+        sharedPrefs.edit().putStringSet("pending_recurring_deletions", current).apply()
+    }
+
+    fun removePendingRecurringDeletion(serverId: String) {
+        val current = getPendingRecurringDeletions().toMutableSet()
+        current.remove(serverId)
+        sharedPrefs.edit().putStringSet("pending_recurring_deletions", current).apply()
+    }
+
+    fun getPendingBudgetDeletions(): Set<String> {
+        return sharedPrefs.getStringSet("pending_budget_deletions", emptySet()) ?: emptySet()
+    }
+
+    fun addPendingBudgetDeletion(serverId: String) {
+        val current = getPendingBudgetDeletions().toMutableSet()
+        current.add(serverId)
+        sharedPrefs.edit().putStringSet("pending_budget_deletions", current).apply()
+    }
+
+    fun removePendingBudgetDeletion(serverId: String) {
+        val current = getPendingBudgetDeletions().toMutableSet()
+        current.remove(serverId)
+        sharedPrefs.edit().putStringSet("pending_budget_deletions", current).apply()
+    }
 }
