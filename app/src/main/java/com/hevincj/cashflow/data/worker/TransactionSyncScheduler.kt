@@ -34,7 +34,7 @@ class TransactionSyncScheduler @Inject constructor(
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "sync_upsert_$localId",
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 syncRequest
             )
         } catch (e: Exception) {

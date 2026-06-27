@@ -280,6 +280,8 @@ fun AddCardScreen(
     }
 }
 
+private val indianCurrencyFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+
 @Composable
 fun LiveCardPreview(
     cardHolder: String,
@@ -288,8 +290,9 @@ fun LiveCardPreview(
     brand: CardBrand,
     gradientColors: List<Long>
 ) {
-    val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US)
-    val formattedBalance = currencyFormatter.format(balance)
+    val formattedBalance = remember(balance) {
+        indianCurrencyFormatter.format(balance)
+    }
 
     Card(
         modifier = Modifier

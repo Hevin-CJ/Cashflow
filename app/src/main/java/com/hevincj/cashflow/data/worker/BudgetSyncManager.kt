@@ -28,7 +28,7 @@ class BudgetSyncManager @Inject constructor(
                     if (entity.isSynced) return null
 
                     val requestDto = BudgetRequestDto(
-                        category = entity.category,
+                        category = entity.category.name,
                         monthlyLimit = entity.monthlyLimit,
                         month = entity.month,
                         year = entity.year

@@ -25,6 +25,7 @@ import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import java.time.YearMonth
+import kotlinx.collections.immutable.persistentListOf
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsViewModelTest {
@@ -40,7 +41,7 @@ class StatsViewModelTest {
 
     private lateinit var viewModel: StatsViewModel
 
-    private val sampleTransactions = listOf(
+    private val sampleTransactions = persistentListOf(
         Transaction(
             id = "1",
             title = "Groceries",
@@ -58,8 +59,8 @@ class StatsViewModelTest {
     private val sampleStats = TransactionStats(
         totalIncome = 0.0,
         totalExpenses = 900.0,
-        weeklyIncome = listOf(0f, 0f, 0f, 0f),
-        weeklyExpenses = listOf(0f, 900f, 0f, 0f),
+        weeklyIncome = persistentListOf(0f, 0f, 0f, 0f),
+        weeklyExpenses = persistentListOf(0f, 900f, 0f, 0f),
         recentTransactions = sampleTransactions
     )
 
@@ -95,6 +96,20 @@ class StatsViewModelTest {
 
         val state = viewModel.state.value
         assertEquals(newMonth, state.selectedMonth)
+    }
+
+    @Test
+    fun testInitializationComputesNetSavingsTrend() = runTest {
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.isLoading)
+        
+        val trend = state.netSavingsTrend
+        assertTrue(trend.isNotEmpty())
+        
+        val juneSavings = trend.find { it.month == YearMonth.of(2024, 6) }
+        assertEquals(-900.0, juneSavings?.amount ?: 0.0, 0.01)
     }
 
     // Helper function to bypass standard kotlin collection checks

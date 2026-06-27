@@ -14,12 +14,21 @@ class SmoothNotchedShape(
     private val fabRadius: Dp = 32.dp,
     private val notchPadding: Dp = 6.dp
 ) : Shape {
+    private var cachedOutline: Outline? = null
+    private var cachedSize: Size? = null
+    private var cachedDensity: Float? = null
+
     override fun createOutline(
         size: Size,
         layoutDirection: LayoutDirection,
         density: Density
     ): Outline {
-        return Outline.Generic(Path().apply {
+        val dpScale = density.density
+        if (cachedOutline != null && cachedSize == size && cachedDensity == dpScale) {
+            return cachedOutline!!
+        }
+
+        val path = Path().apply {
             val width = size.width
             val height = size.height
 
@@ -59,6 +68,12 @@ class SmoothNotchedShape(
             lineTo(width, height)
             lineTo(0f, height)
             close()
-        })
+        }
+
+        val newOutline = Outline.Generic(path)
+        cachedOutline = newOutline
+        cachedSize = size
+        cachedDensity = dpScale
+        return newOutline
     }
 }

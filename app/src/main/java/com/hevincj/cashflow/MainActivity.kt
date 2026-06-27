@@ -1,18 +1,19 @@
 package com.hevincj.cashflow
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hevincj.cashflow.data.local.ThemeManager
 import com.hevincj.cashflow.data.local.ThemeMode
+import com.hevincj.cashflow.data.worker.RecurringExpenseSyncScheduler
 import com.hevincj.cashflow.ui.navigation.RootNavigation
 import com.hevincj.cashflow.ui.theme.CashFlowTheme
 import javax.inject.Inject
-
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -21,12 +22,20 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var themeManager: ThemeManager
 
+    // FIX: Inject scheduler to initialize background workers on process startup
+    @Inject
+    lateinit var recurringExpenseSyncScheduler: RecurringExpenseSyncScheduler
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestHighRefreshRate()
         enableEdgeToEdge()
+
+        // FIX: Start background auto-logging processing engine immediately on app launch
+        recurringExpenseSyncScheduler.schedulePeriodicRecurringProcessing()
+
         setContent {
-            val themeMode by themeManager.themeMode.collectAsState()
+            val themeMode by themeManager.themeMode.collectAsStateWithLifecycle()
             val isDarkTheme = when (themeMode) {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
@@ -39,26 +48,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestHighRefreshRate() {
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                val display = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    display
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val currentDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    this.display
                 } else {
                     @Suppress("DEPRECATION")
                     windowManager.defaultDisplay
                 }
-                val modes = display?.supportedModes
+                val modes = currentDisplay?.supportedModes
                 if (!modes.isNullOrEmpty()) {
                     val highestMode = modes.maxByOrNull { it.refreshRate }
                     if (highestMode != null) {
                         val layoutParams = window.attributes
-                        layoutParams.preferredDisplayModeId = highestMode.modeId
-                        window.attributes = layoutParams
+                        if (layoutParams.preferredDisplayModeId != highestMode.modeId) {
+                            layoutParams.preferredDisplayModeId = highestMode.modeId
+                            window.attributes = layoutParams
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                // Safe fallback if display APIs are restricted or fail
             }
-        } catch (e: Exception) {
-            // Safe fallback if display APIs are restricted or fail
         }
     }
 }

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import com.hevincj.cashflow.domain.usecase.GetStatisticsUseCase
 import com.hevincj.cashflow.ui.screen.state.StatsUiState
+import com.hevincj.cashflow.ui.screen.state.MonthlyNetSavings
+import com.hevincj.cashflow.domain.models.TransactionType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +18,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.YearMonth
 import javax.inject.Inject
+import kotlinx.collections.immutable.toImmutableList
 
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -57,16 +61,26 @@ class StatsViewModel @Inject constructor(
                     // available-month list updates silently — no isLoading flash.
                     getStatisticsUseCase(selectedMonth.year, selectedMonth.monthValue)
                         .combine(repository.getAllTransactions()) { stats, allTransactions ->
-                            val months = (allTransactions.map { tx ->
+                            val transactionsByMonth = allTransactions.groupBy { tx ->
                                 val date = Instant.ofEpochMilli(tx.timestamp)
                                     .atZone(ZoneId.systemDefault()).toLocalDate()
                                 YearMonth.of(date.year, date.monthValue)
-                            } + YearMonth.now()).distinct().sortedDescending()
+                            }
+
+                            val months = (transactionsByMonth.keys + YearMonth.now()).distinct().sortedDescending()
+
+                            val netSavingsTrend = months.sorted().map { month ->
+                                val monthTransactions = transactionsByMonth[month] ?: emptyList()
+                                val income = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { kotlin.math.abs(it.amount) }
+                                val expense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { kotlin.math.abs(it.amount) }
+                                MonthlyNetSavings(month, income - expense)
+                            }
 
                             StatsUiState(
                                 stats = stats,
                                 selectedMonth = selectedMonth,
-                                availableMonths = months,
+                                availableMonths = months.toImmutableList(),
+                                netSavingsTrend = netSavingsTrend.toImmutableList(),
                                 isLoading = false
                             )
                         }

@@ -6,10 +6,13 @@ import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.collections.immutable.toImmutableList
 
 class GetStatisticsUseCase @Inject constructor(
     private val repository: TransactionRepository
@@ -45,11 +48,11 @@ class GetStatisticsUseCase @Inject constructor(
             TransactionStats(
                 totalIncome = totalIncome,
                 totalExpenses = totalExpenses,
-                weeklyIncome = weeklyIncome,
-                weeklyExpenses = weeklyExpenses,
-                recentTransactions = sortedTransactions // Return all transactions to avoid summary mismatch
+                weeklyIncome = weeklyIncome.toImmutableList(),
+                weeklyExpenses = weeklyExpenses.toImmutableList(),
+                recentTransactions = sortedTransactions.toImmutableList() // Return all transactions to avoid summary mismatch
             )
-        }
+        }.flowOn(Dispatchers.Default)
     }
 
     private fun isTargetMonth(timestampMs: Long, year: Int, month: Int): Boolean {

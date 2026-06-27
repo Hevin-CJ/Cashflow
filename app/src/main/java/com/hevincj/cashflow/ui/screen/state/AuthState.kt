@@ -1,5 +1,8 @@
 package com.hevincj.cashflow.ui.screen.state
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 sealed class AuthState {
     object Idle : AuthState()
     object Loading : AuthState()

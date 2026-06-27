@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.collections.immutable.toImmutableList
 
 data class BudgetAlert(
     val category: TransactionCategory,
@@ -94,9 +95,9 @@ class BudgetViewModel @Inject constructor(
                             checkAlerts(budgets)
 
                             BudgetUiState(
-                                budgets = budgets,
+                                budgets = budgets.toImmutableList(),
                                 selectedMonth = selectedMonth,
-                                availableMonths = months,
+                                availableMonths = months.toImmutableList(),
                                 isLoading = false
                             )
                         }

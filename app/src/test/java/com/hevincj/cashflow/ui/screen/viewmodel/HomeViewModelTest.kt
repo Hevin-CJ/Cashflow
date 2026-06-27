@@ -7,6 +7,7 @@ import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.GetTransactionsUseCase
+import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
 import com.hevincj.cashflow.ui.screen.state.BalanceRange
 import com.hevincj.cashflow.utils.NetworkMonitor
 import androidx.compose.ui.graphics.Color
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Before
@@ -48,10 +50,10 @@ class HomeViewModelTest {
     lateinit var networkMonitor: NetworkMonitor
 
     @Mock
-    lateinit var getBudgetsWithSpendingUseCase: com.hevincj.cashflow.domain.usecase.GetBudgetsWithSpendingUseCase
+    lateinit var budgetRepository: com.hevincj.cashflow.domain.repository.BudgetRepository
 
     @Mock
-    lateinit var budgetRepository: com.hevincj.cashflow.domain.repository.BudgetRepository
+    lateinit var processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
 
     private lateinit var viewModel: HomeViewModel
 
@@ -87,9 +89,10 @@ class HomeViewModelTest {
         MockitoAnnotations.openMocks(this)
         whenever(getTransactionsUseCase.invoke()).thenReturn(flowOf(sampleTransactions))
         whenever(networkMonitor.isConnected).thenReturn(flowOf(true))
-        whenever(getBudgetsWithSpendingUseCase.invoke(any(), any())).thenReturn(flowOf(emptyList()))
+        whenever(budgetRepository.getBudgetsForMonth(any(), any())).thenReturn(flowOf(emptyList()))
         runBlocking {
             whenever(budgetRepository.syncBudgets()).thenReturn(null)
+            whenever(processRecurringExpensesUseCase.invoke()).thenReturn(Unit)
         }
     }
 
@@ -100,9 +103,9 @@ class HomeViewModelTest {
             addTransactionUseCase,
             repository,
             networkMonitor,
-            getBudgetsWithSpendingUseCase,
-            budgetRepository
-        )
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         advanceUntilIdle()
 
         val state = viewModel.state.value
@@ -120,12 +123,13 @@ class HomeViewModelTest {
             addTransactionUseCase,
             repository,
             networkMonitor,
-            getBudgetsWithSpendingUseCase,
-            budgetRepository
-        )
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         advanceUntilIdle()
         
         viewModel.onBalanceRangeChange(BalanceRange.ALL_TIME)
+        advanceUntilIdle()
         
         val state = viewModel.state.value
         assertEquals(BalanceRange.ALL_TIME, state.balanceRange)
@@ -135,15 +139,15 @@ class HomeViewModelTest {
 
     @Test
     fun testObserveNetworkChangesHandlesOffline() = runTest {
-        whenever(networkMonitor.isConnected).thenReturn(flowOf(false))
+        whenever(networkMonitor.isConnected).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(false))
         val localViewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
             networkMonitor,
-            getBudgetsWithSpendingUseCase,
-            budgetRepository
-        )
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         
         advanceUntilIdle()
         
@@ -161,9 +165,9 @@ class HomeViewModelTest {
             addTransactionUseCase,
             repository,
             networkMonitor,
-            getBudgetsWithSpendingUseCase,
-            budgetRepository
-        )
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         
         advanceUntilIdle()
         
@@ -181,15 +185,15 @@ class HomeViewModelTest {
     @Test
     fun testInitializationDisplaysCachedDataDuringSync() = runTest {
         whenever(repository.syncTransactions(25)).thenReturn(null)
-
+ 
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
             networkMonitor,
-            getBudgetsWithSpendingUseCase,
-            budgetRepository
-        )
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         viewModel.refreshSync(force = true)
         
         val state = viewModel.state.value
@@ -204,15 +208,15 @@ class HomeViewModelTest {
         runBlocking {
             whenever(budgetRepository.syncBudgets()).thenReturn("Failed to sync budgets")
         }
-
+ 
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
             repository,
             networkMonitor,
-            getBudgetsWithSpendingUseCase,
-            budgetRepository
-        )
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         // Trigger initial sync which fails
         viewModel.refreshSync(force = true)
         advanceUntilIdle()
@@ -238,5 +242,42 @@ class HomeViewModelTest {
 
         // Verify the error is removed/cleared from the home screen state
         assertEquals(null, viewModel.state.value.error)
+    }
+
+    @Test
+    fun testSearchQueryAndCategoryFiltering() = runTest {
+        viewModel = HomeViewModel(
+            getTransactionsUseCase,
+            addTransactionUseCase,
+            repository,
+            networkMonitor,
+            budgetRepository,
+            processRecurringExpensesUseCase
+        ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
+        
+        // Start collecting filteredTransactions in a background coroutine to activate the flow
+        val collectJob = launch { viewModel.filteredTransactions.collect {} }
+        
+        // Wait for initialization to complete
+        advanceUntilIdle()
+        
+        // Initially filteredTransactions should have all sample transactions
+        assertEquals(2, viewModel.filteredTransactions.value.size)
+        
+        // Filter by search query
+        viewModel.setSearchQuery("Groceries")
+        advanceUntilIdle()
+        assertEquals(1, viewModel.filteredTransactions.value.size)
+        assertEquals("Groceries", viewModel.filteredTransactions.value.first().title)
+        
+        // Clear search and filter by category
+        viewModel.setSearchQuery("")
+        viewModel.setSelectedCategory(TransactionCategory.SALARY)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.filteredTransactions.value.size)
+        assertEquals("Salary", viewModel.filteredTransactions.value.first().title)
+        
+        // Cancel collection job to avoid leaking dispatcher execution
+        collectJob.cancel()
     }
 }

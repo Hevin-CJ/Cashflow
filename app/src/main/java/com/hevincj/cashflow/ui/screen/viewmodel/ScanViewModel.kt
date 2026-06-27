@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.collections.immutable.persistentListOf
 import java.util.UUID
 import javax.inject.Inject
 
@@ -87,8 +90,8 @@ class ScanViewModel @Inject constructor(
                     val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
                     val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
                     state.copy(
-                        scannedCodes = updatedCodes,
-                        resolvingCodes = updatedResolving
+                        scannedCodes = updatedCodes.toImmutableList(),
+                        resolvingCodes = updatedResolving.toImmutableList()
                     )
                 }
                 _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
@@ -103,7 +106,7 @@ class ScanViewModel @Inject constructor(
                                 val updatedProducts = state.scannedProducts.toMutableMap().apply {
                                     put(barcode, result)
                                 }
-                                state.copy(scannedProducts = updatedProducts)
+                                state.copy(scannedProducts = updatedProducts.toImmutableMap())
                             }
                         }
                     } catch (e: Exception) {
@@ -111,7 +114,7 @@ class ScanViewModel @Inject constructor(
                     } finally {
                         _state.update { state ->
                             val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
-                            state.copy(resolvingCodes = finalResolving)
+                            state.copy(resolvingCodes = finalResolving.toImmutableList())
                         }
                         updateCalculatedSum()
                     }
@@ -123,8 +126,8 @@ class ScanViewModel @Inject constructor(
                 val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
                 val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
                 state.copy(
-                    scannedCodes = updatedCodes,
-                    resolvingCodes = updatedResolving
+                    scannedCodes = updatedCodes.toImmutableList(),
+                    resolvingCodes = updatedResolving.toImmutableList()
                 )
             }
             _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
@@ -139,7 +142,7 @@ class ScanViewModel @Inject constructor(
                             val updatedProducts = state.scannedProducts.toMutableMap().apply {
                                 put(barcode, result)
                             }
-                            state.copy(scannedProducts = updatedProducts)
+                            state.copy(scannedProducts = updatedProducts.toImmutableMap())
                         }
                     }
                 } catch (e: Exception) {
@@ -147,7 +150,7 @@ class ScanViewModel @Inject constructor(
                 } finally {
                     _state.update { state ->
                         val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
-                        state.copy(resolvingCodes = finalResolving)
+                        state.copy(resolvingCodes = finalResolving.toImmutableList())
                     }
                     updateCalculatedSum()
                 }
@@ -179,7 +182,7 @@ class ScanViewModel @Inject constructor(
     fun onClearAll() {
         _state.update { state ->
             state.copy(
-                scannedCodes = emptyList(),
+                scannedCodes = persistentListOf(),
                 commonAmountString = "",
                 isAmountEditedByUser = false
             )
@@ -189,7 +192,7 @@ class ScanViewModel @Inject constructor(
     fun onRemoveBarcode(barcode: String) {
         _state.update { state ->
             val updatedCodes = state.scannedCodes.toMutableList().apply { remove(barcode) }
-            state.copy(scannedCodes = updatedCodes)
+            state.copy(scannedCodes = updatedCodes.toImmutableList())
         }
         updateCalculatedSum()
     }
@@ -223,7 +226,7 @@ class ScanViewModel @Inject constructor(
                 ))
             }
             state.copy(
-                scannedProducts = updatedProducts,
+                scannedProducts = updatedProducts.toImmutableMap(),
                 editingCode = null,
                 editingName = ""
             )
@@ -310,17 +313,19 @@ class ScanViewModel @Inject constructor(
             }
             val description = "Batch scanned barcodes: $barcodeDetails"
 
+            val transactionTime = System.currentTimeMillis()
             val transaction = Transaction(
                 id = UUID.randomUUID().toString(),
                 title = transactionTitle.take(50),
-                timestamp = System.currentTimeMillis(),
+                timestamp = transactionTime,
                 amount = -totalAmount,
                 icon = category.icon,
                 iconBgColor = category.iconBgColor,
                 type = TransactionType.EXPENSE,
                 category = category,
                 description = description,
-                isSynced = false
+                isSynced = false,
+                formattedDate = com.hevincj.cashflow.utils.DateTimeUtils.formatTimestamp(transactionTime)
             )
             try {
                 transactionRepository.insertTransaction(transaction)
@@ -369,17 +374,19 @@ class ScanViewModel @Inject constructor(
             try {
                 val finalRrn = rrn ?: (System.currentTimeMillis().toString().takeLast(8) + (1000..9999).random().toString())
                 val description = "Sent via UPI\nTo: $name ($vpa)\nRef: $finalRrn\nNote: ${note ?: "—"}"
+                val transactionTime = System.currentTimeMillis()
                 val transaction = Transaction(
                     id = java.util.UUID.randomUUID().toString(),
                     title = "UPI · $name",
-                    timestamp = System.currentTimeMillis(),
+                    timestamp = transactionTime,
                     amount = -amount,
                     icon = TransactionCategory.OTHERS.icon,
                     iconBgColor = TransactionCategory.OTHERS.iconBgColor,
                     type = TransactionType.EXPENSE,
                     category = TransactionCategory.OTHERS,
                     description = description,
-                    isSynced = false
+                    isSynced = false,
+                    formattedDate = com.hevincj.cashflow.utils.DateTimeUtils.formatTimestamp(transactionTime)
                 )
                 transactionRepository.insertTransaction(transaction)
                 onComplete(true)

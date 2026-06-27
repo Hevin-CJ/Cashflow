@@ -29,7 +29,8 @@ data class TransactionDto(
     val type: String,
     val category: String,
     val description: String?,
-    val timestamp: Long
+    val timestamp: Long,
+    val recurringExpenseId: String? = null
 )
 
 data class TransactionRequestDto(
@@ -38,7 +39,8 @@ data class TransactionRequestDto(
     val category: String,
     val description: String? = null,
     val barcode: String? = null,
-    val productName: String? = null
+    val productName: String? = null,
+    val recurringExpenseId: String? = null
 )
 
 data class CreditCardDto(

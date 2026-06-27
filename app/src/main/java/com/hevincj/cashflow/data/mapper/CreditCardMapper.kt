@@ -2,6 +2,7 @@ package com.hevincj.cashflow.data.mapper
 
 import com.hevincj.cashflow.data.local.entity.CreditCardEntity
 import com.hevincj.cashflow.domain.models.CreditCard
+import kotlinx.collections.immutable.toImmutableList
 
 fun CreditCardEntity.toDomain(): CreditCard {
     return CreditCard(
@@ -9,7 +10,7 @@ fun CreditCardEntity.toDomain(): CreditCard {
         balance = balance,
         cardNumber = cardNumber,
         cardHolder = cardHolder,
-        gradientColors = gradientColorsHex.split(",").map { it.toLong(16) }
+        gradientColors = gradientColorsHex.split(",").map { it.toLong(16) }.toImmutableList()
     )
 }
 

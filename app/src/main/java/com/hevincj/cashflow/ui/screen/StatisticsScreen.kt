@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.collections.immutable.persistentListOf
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -28,8 +29,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hevincj.cashflow.ui.screen.HomeScreen
 import com.hevincj.cashflow.ui.theme.*
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.background
+import kotlin.math.atan2
+import kotlin.math.sqrt
+import com.hevincj.cashflow.ui.screen.state.MonthlyNetSavings
+import java.time.YearMonth
 
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -39,6 +50,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -49,11 +69,11 @@ import com.hevincj.cashflow.domain.models.TransactionStats
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.ui.screen.state.StatsUiState
-import com.hevincj.cashflow.utils.DateTimeUtils
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.platform.LocalDensity
 
 // Cached at file scope — DateTimeFormatter.ofPattern compiles the pattern string
 // on every call. These are safe to share across recompositions (immutable).
@@ -143,6 +163,45 @@ fun StatisticsScreen(
     }
 }
 
+
+
+@Composable
+fun ShimmerStatisticsScreenContent(shimmerTranslateProvider: () -> Float, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        // Shimmer for IncomeExpenseSummaryRow
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .shimmerEffect(shimmerTranslateProvider)
+        )
+
+        // Shimmer for NetSavingsLineChart
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .shimmerEffect(shimmerTranslateProvider)
+        )
+
+        // Shimmer for ChartSection (Weekly Bar Chart)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .shimmerEffect(shimmerTranslateProvider)
+        )
+    }
+}
+
 @Composable
 fun StatisticsScreenContent(
     uiState: StatsUiState,
@@ -151,56 +210,110 @@ fun StatisticsScreenContent(
 ) {
     val stats = uiState.stats
     var selectedTab by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var selectedCategory by remember { mutableStateOf<TransactionCategory?>(null) }
 
-    val filteredTransactions = remember(stats?.recentTransactions?.size, stats?.recentTransactions?.firstOrNull()?.id, selectedTab) {
+    LaunchedEffect(selectedTab, uiState.selectedMonth) {
+        selectedCategory = null
+    }
+
+    val filteredTransactions = remember(stats?.recentTransactions, selectedTab) {
         stats?.recentTransactions?.filter {
             it.type == selectedTab
         } ?: emptyList()
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth(),
-        contentPadding = PaddingValues(
-            start = 24.dp,
-            end = 24.dp,
-            bottom = 80.dp
+    val displayedTransactions = remember(filteredTransactions, selectedCategory) {
+        if (selectedCategory != null) {
+            filteredTransactions.filter { it.category == selectedCategory }
+        } else {
+            filteredTransactions
+        }
+    }
+
+    val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
+    val shimmerTranslateAnim = shimmerTransition.animateFloat(
+        initialValue = -300f,
+        targetValue = 900f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
         ),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        item { 
-            IncomeExpenseSummaryRow(
-                income = stats?.totalIncome ?: 0.0,
-                expense = stats?.totalExpenses ?: 0.0
-            ) 
-        }
+        label = "shimmerTranslate"
+    )
+    val shimmerTranslateProvider = remember(shimmerTranslateAnim) { { shimmerTranslateAnim.value } }
 
-        item { 
-            ChartSection(
-                selectedMonth = uiState.selectedMonth,
-                availableMonths = uiState.availableMonths,
-                onMonthSelected = onMonthSelected,
-                incomeData = stats?.weeklyIncome ?: emptyList(),
-                expenseData = stats?.weeklyExpenses ?: emptyList()
-            ) 
-        }
+    Crossfade(
+        targetState = uiState.isLoading,
+        modifier = modifier.fillMaxWidth(),
+        label = "statsContentTransition"
+    ) { isLoading ->
+        if (isLoading) {
+            ShimmerStatisticsScreenContent(shimmerTranslateProvider = shimmerTranslateProvider)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(
+                    start = 24.dp,
+                    end = 24.dp,
+                    bottom = 80.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                item(contentType = "summary") { 
+                    IncomeExpenseSummaryRow(
+                        income = stats?.totalIncome ?: 0.0,
+                        expense = stats?.totalExpenses ?: 0.0
+                    ) 
+                }
 
-        item { 
-            IncomeExpenseTabs(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
-            ) 
-        }
+                item(contentType = "line_chart") {
+                    NetSavingsLineChart(
+                        netSavingsTrend = uiState.netSavingsTrend,
+                        selectedMonth = uiState.selectedMonth,
+                        onMonthSelected = onMonthSelected
+                    )
+                }
 
-        items(items = filteredTransactions, key = { it.id }) { transaction ->
-            CustomStatTransactionItem(
-                icon = transaction.icon,
-                iconColor = Color(0xFF212121),
-                iconBgColor = transaction.iconBgColor,
-                category = transaction.title,
-                date = DateTimeUtils.formatTimestamp(transaction.timestamp),
-                amount = (if (transaction.amount > 0) "+" else "-") + "$" + kotlin.math.abs(transaction.amount).toInt()
-            )
+                item(contentType = "bar_chart") { 
+                    ChartSection(
+                        selectedMonth = uiState.selectedMonth,
+                        availableMonths = uiState.availableMonths,
+                        onMonthSelected = onMonthSelected,
+                        incomeData = stats?.weeklyIncome ?: emptyList(),
+                        expenseData = stats?.weeklyExpenses ?: emptyList()
+                    ) 
+                }
+
+                item(contentType = "tabs") { 
+                    IncomeExpenseTabs(
+                        selectedTab = selectedTab,
+                        onTabSelected = { selectedTab = it }
+                    ) 
+                }
+
+                item(contentType = "donut_chart") {
+                    CategoryDonutChart(
+                        filteredTransactions = filteredTransactions,
+                        selectedCategory = selectedCategory,
+                        onCategorySelected = { selectedCategory = it }
+                    )
+                }
+
+                items(
+                    items = displayedTransactions,
+                    key = { it.id },
+                    contentType = { "transaction" }
+                ) { transaction ->
+                    CustomStatTransactionItem(
+                        icon = transaction.category.icon,
+                        iconColor = Color(0xFF212121),
+                        iconBgColor = transaction.category.iconBgColor,
+                        category = transaction.title,
+                        date = transaction.formattedDate,
+                        amount = (if (transaction.amount > 0) "+" else "-") + "$" + kotlin.math.abs(transaction.amount).toInt()
+                    )
+                }
+            }
         }
     }
 }
@@ -549,8 +662,13 @@ fun GroupedBarChart(
         }
         Spacer(modifier = Modifier.width(10.dp))
         val gridColor = ChartGridLineColor
+        val gridPathEffect = remember { PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f) }
         Box(modifier = Modifier.fillMaxSize()) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer()
+            ) {
                 val gridLineCount = 5
                 val gridLineSpacing = size.height / (gridLineCount - 1)
                 for (i in 0 until gridLineCount) {
@@ -559,7 +677,7 @@ fun GroupedBarChart(
                         color = gridColor,
                         start = Offset(0f, y),
                         end = Offset(size.width, y),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f),
+                        pathEffect = gridPathEffect,
                         strokeWidth = 1f
                     )
                 }
@@ -688,15 +806,515 @@ private fun CustomStatTransactionItem(
 }
 
 
+@Composable
+fun CategoryDonutChart(
+    filteredTransactions: List<Transaction>,
+    selectedCategory: TransactionCategory?,
+    onCategorySelected: (TransactionCategory?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val totalAmount = remember(filteredTransactions) {
+        filteredTransactions.sumOf { kotlin.math.abs(it.amount) }
+    }
+
+    val categorySums = remember(filteredTransactions) {
+        filteredTransactions.groupBy { it.category }
+            .mapValues { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+
+    val unselectedColor = TabUnselectedColor
+    val textPrimary = TextPrimary
+    val textSecondary = TextSecondary
+    val accentColor = FABBackgroundColor
+
+    if (totalAmount == 0.0) {
+        Card(
+            modifier = modifier.fillMaxWidth().height(160.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = unselectedColor)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No transactions for this period",
+                    color = textSecondary,
+                    fontSize = 14.sp
+                )
+            }
+        }
+        return
+    }
+
+    val chartColors = listOf(
+        Color(0xFF8121FD), // Purple
+        Color(0xFFFF5722), // Orange
+        Color(0xFF00B0FF), // Blue
+        Color(0xFF00E676), // Green
+        Color(0xFFFFD600), // Yellow
+        Color(0xFFFF4081), // Pink
+        Color(0xFF651FFF), // Deep Purple
+        Color(0xFF1DE9B6), // Teal
+        Color(0xFFFF9100), // Amber
+        Color(0xFF3D5AFE)  // Indigo
+    )
+
+    val categoryColors = remember(categorySums) {
+        categorySums.mapIndexed { index, pair ->
+            pair.first to chartColors[index % chartColors.size]
+        }.toMap()
+    }
+
+    val density = LocalDensity.current
+    val strokeSelected = remember(density) {
+        Stroke(width = with(density) { 28.dp.toPx() }, cap = StrokeCap.Butt)
+    }
+    val strokeUnselected = remember(density) {
+        Stroke(width = with(density) { 20.dp.toPx() }, cap = StrokeCap.Butt)
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = unselectedColor.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Category Breakdown",
+                color = textPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Start)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Box(
+                    modifier = Modifier.size(160.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer()
+                            .pointerInput(categorySums, totalAmount) {
+                                detectTapGestures { offset ->
+                                    val centerX = size.width / 2f
+                                    val centerY = size.height / 2f
+                                    val dx = offset.x - centerX
+                                    val dy = offset.y - centerY
+                                    val distance = sqrt(dx * dx + dy * dy)
+
+                                    val outerRadius = size.width / 2f
+                                    val innerRadius = outerRadius - 24.dp.toPx()
+
+                                    if (distance in innerRadius..outerRadius) {
+                                        var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                        angle += 90f
+                                        if (angle < 0) angle += 360f
+
+                                        var currentStartAngle = 0f
+                                        var foundCategory: TransactionCategory? = null
+                                        for ((category, amount) in categorySums) {
+                                            val sweep = (amount.toFloat() / totalAmount.toFloat()) * 360f
+                                            if (angle >= currentStartAngle && angle <= currentStartAngle + sweep) {
+                                                foundCategory = category
+                                                break
+                                            }
+                                            currentStartAngle += sweep
+                                        }
+                                        onCategorySelected(if (selectedCategory == foundCategory) null else foundCategory)
+                                    } else {
+                                        onCategorySelected(null)
+                                    }
+                                }
+                            }
+                    ) {
+                        var currentStartAngle = -90f
+                        categorySums.forEach { (category, amount) ->
+                            val sweep = (amount.toFloat() / totalAmount.toFloat()) * 360f
+                            val isSelected = selectedCategory == category
+                            val isAnySelected = selectedCategory != null
+                            val color = categoryColors[category] ?: Color.Gray
+                            val alpha = if (isSelected) 1f else if (isAnySelected) 0.3f else 1f
+
+                            drawArc(
+                                color = color.copy(alpha = alpha),
+                                startAngle = currentStartAngle,
+                                sweepAngle = sweep,
+                                useCenter = false,
+                                style = if (isSelected) strokeSelected else strokeUnselected
+                            )
+                            currentStartAngle += sweep
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(28.dp)
+                    ) {
+                        val label = selectedCategory?.displayName ?: "Total"
+                        val amount = if (selectedCategory != null) {
+                            categorySums.find { it.first == selectedCategory }?.second ?: 0.0
+                        } else {
+                            totalAmount
+                        }
+                        val percentage = if (selectedCategory != null && totalAmount > 0) {
+                            ((amount / totalAmount) * 100).toInt()
+                        } else {
+                            100
+                        }
+
+                        Text(
+                            text = label,
+                            color = textSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$${amount.toInt()}",
+                            color = textPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(1.dp))
+                        Text(
+                            text = "$percentage%",
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                categorySums.forEach { (category, amount) ->
+                    val isSelected = selectedCategory == category
+                    val isAnySelected = selectedCategory != null
+                    val color = categoryColors[category] ?: Color.Gray
+                    val percentage = ((amount / totalAmount) * 100).toInt()
+                    val alpha = if (isSelected) 1f else if (isAnySelected) 0.5f else 1f
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onCategorySelected(if (isSelected) null else category) }
+                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(color.copy(alpha = alpha), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = category.displayName,
+                            color = if (isSelected) accentColor else textPrimary.copy(alpha = alpha),
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "$${amount.toInt()} ($percentage%)",
+                            color = textSecondary.copy(alpha = alpha),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NetSavingsLineChart(
+    netSavingsTrend: List<MonthlyNetSavings>,
+    selectedMonth: YearMonth,
+    onMonthSelected: (YearMonth) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val displayedTrend = remember(netSavingsTrend) {
+        netSavingsTrend.takeLast(6)
+    }
+
+    val unselectedColor = TabUnselectedColor
+    val textPrimary = TextPrimary
+    val textSecondary = TextSecondary
+    val chartLabelColor = ChartLabelColor
+    val gridColor = ChartGridLineColor
+    val accentColor = FABBackgroundColor
+
+    if (displayedTrend.isEmpty()) {
+        Card(
+            modifier = modifier.fillMaxWidth().height(160.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = unselectedColor)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Insufficient data for savings trend",
+                    color = textSecondary,
+                    fontSize = 14.sp
+                )
+            }
+        }
+        return
+    }
+
+    val maxVal = remember(displayedTrend) {
+        val rawMax = displayedTrend.map { it.amount }.maxOrNull() ?: 100.0
+        if (rawMax == 0.0) 100.0 else rawMax
+    }
+    val minVal = remember(displayedTrend) {
+        val rawMin = displayedTrend.map { it.amount }.minOrNull() ?: -100.0
+        if (rawMin == 0.0) -100.0 else rawMin
+    }
+
+    val range = maxVal - minVal
+    val adjustedMax = if (range == 0.0) maxVal + 100.0 else maxVal + range * 0.15
+    val adjustedMin = if (range == 0.0) minVal - 100.0 else minVal - range * 0.15
+    val adjustedRange = adjustedMax - adjustedMin
+
+    val density = LocalDensity.current
+    val gridPathEffect = remember { PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f) }
+    val interactivePathEffect = remember { PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f) }
+    val lineStroke = remember(density) {
+        Stroke(width = with(density) { 3.dp.toPx() }, cap = StrokeCap.Round)
+    }
+    val linePath = remember { Path() }
+    val fillPath = remember { Path() }
+    val gradientColors = remember(accentColor) {
+        listOf(accentColor.copy(alpha = 0.25f), Color.Transparent)
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = unselectedColor.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Text(
+                text = "Net Savings Trend",
+                color = textPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer()
+                ) {
+                    val pointsCount = displayedTrend.size
+                    if (pointsCount > 0) {
+                        val widthStep = if (pointsCount > 1) size.width / (pointsCount - 1) else size.width
+                        val getX = { index: Int -> index * widthStep }
+                        val getY = { index: Int -> (size.height - ((displayedTrend[index].amount - adjustedMin) / adjustedRange) * size.height).toFloat() }
+
+                        // 1. Draw horizontal grid lines
+                        val gridLineCount = 3
+                        val gridLineSpacing = size.height / (gridLineCount - 1)
+                        for (i in 0 until gridLineCount) {
+                            val y = i * gridLineSpacing
+                            drawLine(
+                                color = gridColor,
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                pathEffect = gridPathEffect,
+                                strokeWidth = 1f
+                            )
+                        }
+
+                        // 2. Draw curve fill path (gradient area under the line)
+                        if (pointsCount > 1) {
+                            fillPath.reset()
+                            fillPath.moveTo(getX(0), size.height)
+                            fillPath.lineTo(getX(0), getY(0))
+                            for (i in 0 until pointsCount - 1) {
+                                val x0 = getX(i)
+                                val y0 = getY(i)
+                                val x1 = getX(i + 1)
+                                val y1 = getY(i + 1)
+                                val cx1 = x0 + (x1 - x0) / 2f
+                                val cy1 = y0
+                                val cx2 = x0 + (x1 - x0) / 2f
+                                val cy2 = y1
+                                fillPath.cubicTo(cx1, cy1, cx2, cy2, x1, y1)
+                            }
+                            fillPath.lineTo(getX(pointsCount - 1), size.height)
+                            fillPath.close()
+
+                            drawPath(
+                                path = fillPath,
+                                brush = Brush.verticalGradient(
+                                    colors = gradientColors,
+                                    startY = 0f,
+                                    endY = size.height
+                                )
+                            )
+
+                            // 3. Draw the smooth curve line
+                            linePath.reset()
+                            linePath.moveTo(getX(0), getY(0))
+                            for (i in 0 until pointsCount - 1) {
+                                val x0 = getX(i)
+                                val y0 = getY(i)
+                                val x1 = getX(i + 1)
+                                val y1 = getY(i + 1)
+                                val cx1 = x0 + (x1 - x0) / 2f
+                                val cy1 = y0
+                                val cx2 = x0 + (x1 - x0) / 2f
+                                val cy2 = y1
+                                linePath.cubicTo(cx1, cy1, cx2, cy2, x1, y1)
+                            }
+
+                            drawPath(
+                                path = linePath,
+                                color = accentColor,
+                                style = lineStroke
+                            )
+                        }
+
+                        // 4. Draw interactive elements & dots
+                        for (index in 0 until pointsCount) {
+                            val item = displayedTrend[index]
+                            val isSelected = item.month == selectedMonth
+                            val px = getX(index)
+                            val py = getY(index)
+
+                            if (isSelected) {
+                                drawLine(
+                                    color = accentColor.copy(alpha = 0.4f),
+                                    start = Offset(px, 0f),
+                                    end = Offset(px, size.height),
+                                    pathEffect = interactivePathEffect,
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            }
+
+                            drawCircle(
+                                color = if (isSelected) Color.White else accentColor,
+                                radius = if (isSelected) 8.dp.toPx() else 5.dp.toPx(),
+                                center = Offset(px, py)
+                            )
+                            if (isSelected) {
+                                drawCircle(
+                                    color = accentColor,
+                                    radius = 5.dp.toPx(),
+                                    center = Offset(px, py)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(displayedTrend) {
+                            detectTapGestures { offset ->
+                                val pointsCount = displayedTrend.size
+                                if (pointsCount > 0) {
+                                    val widthStep = if (pointsCount > 1) size.width / (pointsCount - 1) else size.width
+                                    var closestIndex = -1
+                                    var minDistance = Float.MAX_VALUE
+                                    
+                                    for (i in 0 until pointsCount) {
+                                        val pointX = i * widthStep
+                                        val dist = kotlin.math.abs(offset.x - pointX)
+                                        if (dist < minDistance) {
+                                            minDistance = dist
+                                            closestIndex = i
+                                        }
+                                    }
+
+                                    if (closestIndex != -1 && minDistance < 40.dp.toPx()) {
+                                        onMonthSelected(displayedTrend[closestIndex].month)
+                                    }
+                                }
+                            }
+                        }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // X-axis labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                displayedTrend.forEach { trendItem ->
+                    val isSelected = trendItem.month == selectedMonth
+                    val label = trendItem.month.format(
+                        java.time.format.DateTimeFormatter.ofPattern("MMM", Locale.getDefault())
+                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clickable { onMonthSelected(trendItem.month) }
+                            .padding(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) accentColor else chartLabelColor,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$${trendItem.amount.toInt()}",
+                            color = if (isSelected) accentColor.copy(alpha = 0.8f) else chartLabelColor.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun StatisticsDashboardPreview() {
     val mockStats = TransactionStats(
         totalIncome = 3200.0,
         totalExpenses = 1450.0,
-        weeklyIncome = listOf(1000f, 2500f, 1500f, 3000f),
-        weeklyExpenses = listOf(800f, 1200f, 1100f, 1450f),
-        recentTransactions = listOf(
+        weeklyIncome = persistentListOf(1000f, 2500f, 1500f, 3000f),
+        weeklyExpenses = persistentListOf(800f, 1200f, 1100f, 1450f),
+        recentTransactions = persistentListOf(
             Transaction("1", "Money Transfer", System.currentTimeMillis(), -450.0, Icons.Rounded.Person, Color(0xFFF3F4F6), TransactionType.EXPENSE, TransactionCategory.OTHERS, "Money Transfer", true),
             Transaction("2", "Paypal", System.currentTimeMillis() - 2 * 3600 * 1000L, 1200.0, Icons.Rounded.Payment, Color(0xFFF3F4F6), TransactionType.INCOME, TransactionCategory.SALARY, "Paypal payment", true),
             Transaction("3", "Uber", System.currentTimeMillis() - 4 * 3600 * 1000L, -150.0, Icons.Rounded.DirectionsCar, Color(0xFFF3F4F6), TransactionType.EXPENSE, TransactionCategory.TRANSPORT, "Uber ride", true)

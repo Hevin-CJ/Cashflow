@@ -10,7 +10,7 @@ fun BudgetEntity.toDomain(spent: Double = 0.0): Budget {
         id = id,
         serverId = serverId,
         isSynced = isSynced,
-        category = TransactionCategory.fromString(category),
+        category = category,
         monthlyLimit = monthlyLimit,
         spent = spent,
         month = month,
@@ -23,7 +23,7 @@ fun Budget.toEntity(): BudgetEntity {
         id = id,
         serverId = serverId,
         isSynced = isSynced,
-        category = category.name,
+        category = category,
         monthlyLimit = monthlyLimit,
         month = month,
         year = year

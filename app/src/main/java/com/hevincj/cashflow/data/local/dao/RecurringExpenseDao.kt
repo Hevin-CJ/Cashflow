@@ -12,6 +12,15 @@ interface RecurringExpenseDao {
     @Query("SELECT * FROM recurring_expenses")
     suspend fun getActiveRecurringExpensesList(): List<RecurringExpenseEntity>
 
+    @Query("SELECT * FROM recurring_expenses WHERE id = :id LIMIT 1")
+    suspend fun getRecurringExpenseById(id: Int): RecurringExpenseEntity?
+
+    @Query("SELECT * FROM recurring_expenses WHERE serverId = :serverId LIMIT 1")
+    suspend fun getRecurringExpenseByServerId(serverId: String): RecurringExpenseEntity?
+
+    @Query("SELECT * FROM recurring_expenses WHERE isSynced = 0")
+    suspend fun getUnsyncedRecurringExpenses(): List<RecurringExpenseEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecurringExpense(recurringExpense: RecurringExpenseEntity): Long
 

@@ -22,6 +22,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import kotlinx.collections.immutable.persistentListOf
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CardsViewModelTest {
@@ -49,7 +50,7 @@ class CardsViewModelTest {
             balance = 1000.00,
             cardNumber = "1111 2222 3333 4444",
             cardHolder = "John Doe",
-            gradientColors = listOf(0xFF67E2AEL, 0xFFE8679AL)
+            gradientColors = persistentListOf(0xFF67E2AEL, 0xFFE8679AL)
         )
     )
 

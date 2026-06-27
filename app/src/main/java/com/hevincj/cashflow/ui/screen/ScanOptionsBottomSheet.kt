@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -433,36 +435,29 @@ fun ScanOptionsUi(
 
                         // Gold scan line animation (Only show when camera permission is granted)
                         if (hasCameraPermission) {
-                            var animatedPosition by remember { mutableStateOf(0.05f) }
-                            LaunchedEffect(Unit) {
-                                val durationMillis = 2000L
-                                val initialValue = 0.05f
-                                val targetValue = 0.95f
-                                val range = targetValue - initialValue
-                                while (true) {
-                                    withFrameMillis { frameTime ->
-                                        val elapsed = frameTime % (durationMillis * 2)
-                                        val fraction = if (elapsed < durationMillis) {
-                                            elapsed.toFloat() / durationMillis
-                                        } else {
-                                            (durationMillis * 2 - elapsed).toFloat() / durationMillis
-                                        }
-                                        animatedPosition = initialValue + range * fraction
-                                    }
-                                }
-                            }
+                            val transition = rememberInfiniteTransition(label = "laser")
+                            val animatedPosition by transition.animateFloat(
+                                initialValue = 0.05f,
+                                targetValue = 0.95f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 2000, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "laserPosition"
+                            )
 
                             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                                 if (selectedTab == 0) {
                                     // Barcode Scanner: Gold line is vertical and moves horizontally (left-to-right)
-                                    val lineX = maxWidth * animatedPosition
 
                                     // Vertical laser line
                                     Box(
                                         modifier = Modifier
                                             .fillMaxHeight()
                                             .width(2.dp)
-                                            .offset(x = lineX)
+                                            .offset {
+                                                IntOffset(x = (constraints.maxWidth * animatedPosition).toInt(), y = 0)
+                                            }
                                             .background(
                                                 brush = Brush.verticalGradient(
                                                     colors = listOf(
@@ -481,7 +476,11 @@ fun ScanOptionsUi(
                                         modifier = Modifier
                                             .fillMaxHeight()
                                             .width(30.dp)
-                                            .offset(x = lineX - 15.dp)
+                                            .offset {
+                                                val xPos = (constraints.maxWidth * animatedPosition).toInt()
+                                                val offsetXPx = xPos - 15.dp.roundToPx()
+                                                IntOffset(x = offsetXPx, y = 0)
+                                            }
                                             .background(
                                                 brush = Brush.horizontalGradient(
                                                     colors = listOf(
@@ -494,14 +493,15 @@ fun ScanOptionsUi(
                                     )
                                 } else {
                                     // QR Code Scanner: Gold line is horizontal and moves vertically (up-and-down)
-                                    val lineY = maxHeight * animatedPosition
 
                                     // Horizontal laser line
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(2.dp)
-                                            .offset(y = lineY)
+                                            .offset {
+                                                IntOffset(x = 0, y = (constraints.maxHeight * animatedPosition).toInt())
+                                            }
                                             .background(
                                                 brush = Brush.horizontalGradient(
                                                     colors = listOf(
@@ -520,7 +520,11 @@ fun ScanOptionsUi(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(30.dp)
-                                            .offset(y = lineY - 15.dp)
+                                            .offset {
+                                                val yPos = (constraints.maxHeight * animatedPosition).toInt()
+                                                val offsetYPx = yPos - 15.dp.roundToPx()
+                                                IntOffset(x = 0, y = offsetYPx)
+                                            }
                                             .background(
                                                 brush = Brush.verticalGradient(
                                                     colors = listOf(
@@ -637,32 +641,25 @@ fun ScanOptionsUi(
                             val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 100) }
 
                             // Pulsing corner frame animation for high-tech look
-                            var pulseScale by remember { mutableStateOf(0.98f) }
-                            LaunchedEffect(Unit) {
-                                val durationMillis = 1250L
-                                val initialValue = 0.98f
-                                val targetValue = 1.02f
-                                val range = targetValue - initialValue
-                                val easing = FastOutSlowInEasing
-                                while (true) {
-                                    withFrameMillis { frameTime ->
-                                        val elapsed = frameTime % (durationMillis * 2)
-                                        val linearFraction = if (elapsed < durationMillis) {
-                                            elapsed.toFloat() / durationMillis
-                                        } else {
-                                            (durationMillis * 2 - elapsed).toFloat() / durationMillis
-                                        }
-                                        val easedFraction = easing.transform(linearFraction)
-                                        pulseScale = initialValue + range * easedFraction
-                                    }
-                                }
-                            }
+                            val transition = rememberInfiniteTransition(label = "pulse")
+                            val pulseScale by transition.animateFloat(
+                                initialValue = 0.98f,
+                                targetValue = 1.02f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 1250, easing = FastOutSlowInEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "pulseScale"
+                            )
                             
                             // Center Frame: L-corners bounding box
                             Box(
                                 modifier = Modifier
                                     .size(170.dp)
-                                    .scale(pulseScale)
+                                    .graphicsLayer {
+                                        scaleX = pulseScale
+                                        scaleY = pulseScale
+                                    }
                                     .align(Alignment.Center),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -918,6 +915,19 @@ private fun CardScannerView(
         onDispose {
             cameraExecutor.shutdown()
             toneGenerator.release()
+            try {
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    try {
+                        val cameraProvider = cameraProviderFuture.get()
+                        cameraProvider.unbindAll()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }, ContextCompat.getMainExecutor(context))
+            } catch (e: Exception) {
+                // Safe ignore if provider is not available or initialized
+            }
         }
     }
 

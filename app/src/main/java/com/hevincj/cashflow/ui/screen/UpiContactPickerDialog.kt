@@ -35,6 +35,9 @@ import com.hevincj.cashflow.ui.theme.CardBackground
 import com.hevincj.cashflow.ui.theme.TextPrimary
 import com.hevincj.cashflow.ui.theme.TextSecondary
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class ContactInfo(
     val name: String,
     val phoneNumber: String
@@ -184,7 +187,7 @@ fun UpiContactPickerDialog(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(filteredContacts) { contact ->
+                        items(filteredContacts, key = { it.phoneNumber }) { contact ->
                             ContactRow(
                                 contact = contact,
                                 onClick = {

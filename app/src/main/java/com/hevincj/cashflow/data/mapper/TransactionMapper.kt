@@ -10,23 +10,23 @@ import com.hevincj.cashflow.data.remote.models.TransactionDto
 import com.hevincj.cashflow.utils.DateTimeUtils
 
 fun TransactionEntity.toDomain(): Transaction {
-    val resolvedType = try { TransactionType.valueOf(type.uppercase(java.util.Locale.ROOT)) } catch (e: Exception) { TransactionType.EXPENSE }
-    val resolvedAmount = if (resolvedType == TransactionType.EXPENSE) -kotlin.math.abs(amount) else kotlin.math.abs(amount)
-    val resolvedCategory = TransactionCategory.fromString(category)
+    val resolvedAmount = if (type == TransactionType.EXPENSE) -kotlin.math.abs(amount) else kotlin.math.abs(amount)
     return Transaction(
         id = serverId ?: id.toString(),
         title = title,
         timestamp = timestamp,
         amount = resolvedAmount,
-        icon = resolvedCategory.icon,
+        icon = category.icon,
         iconBgColor = Color(iconBgColor),
-        type = resolvedType,
-        category = resolvedCategory,
+        type = type,
+        category = category,
         description = description,
         isSynced = isSynced,
         barcode = barcode,
         productName = productName,
-        formattedDate = DateTimeUtils.formatTimestamp(timestamp)
+        formattedDate = DateTimeUtils.formatTimestamp(timestamp),
+        lastModifiedLocal = lastModifiedLocal,
+        recurringExpenseId = recurringExpenseId
     )
 }
 
@@ -43,21 +43,39 @@ fun Transaction.toEntity(): TransactionEntity {
         amount = resolvedAmount,
         iconName = category.iconName,
         iconBgColor = iconBgColor.toArgb(),
-        type = type.name,
-        category = category.name,
+        type = type,
+        category = category,
         description = description,
         isSynced = isSynced,
         barcode = barcode,
-        productName = productName
+        productName = productName,
+        lastModifiedLocal = lastModifiedLocal,
+        recurringExpenseId = recurringExpenseId
     )
 }
 
 fun TransactionDto.toDomain(): Transaction {
     val resolvedCategory = TransactionCategory.fromString(category)
-    val displayTitle = if (!description.isNullOrBlank()) description else resolvedCategory.displayName
-    val resolvedType = try { TransactionType.valueOf(type.uppercase(java.util.Locale.ROOT)) } catch (e: Exception) { TransactionType.EXPENSE }
+    val resolvedType = try {
+        TransactionType.valueOf(type.uppercase(java.util.Locale.ROOT))
+    } catch (e: Exception) {
+        TransactionType.EXPENSE
+    }
+
+    // Check if the remote description matches an out-of-date or fallback category name string
+    val isDescriptionCategoryFallback = !description.isNullOrBlank() && TransactionCategory.values().any {
+        it.displayName.equals(description, ignoreCase = true) || it.name.equals(description, ignoreCase = true)
+    }
+
+    // If description is a category fallback, dynamically shift the title to match the fresh category
+    val displayTitle = if (!description.isNullOrBlank() && !isDescriptionCategoryFallback) {
+        description
+    } else {
+        resolvedCategory.displayName
+    }
+
     val resolvedAmount = if (resolvedType == TransactionType.EXPENSE) -kotlin.math.abs(amount) else kotlin.math.abs(amount)
-    
+
     return Transaction(
         id = id,
         title = displayTitle,
@@ -67,8 +85,9 @@ fun TransactionDto.toDomain(): Transaction {
         iconBgColor = resolvedCategory.iconBgColor,
         type = resolvedType,
         category = resolvedCategory,
-        description = description,
+        description = if (isDescriptionCategoryFallback) null else description,
         isSynced = true,
-        formattedDate = DateTimeUtils.formatTimestamp(timestamp)
+        formattedDate = DateTimeUtils.formatTimestamp(timestamp),
+        recurringExpenseId = recurringExpenseId
     )
 }

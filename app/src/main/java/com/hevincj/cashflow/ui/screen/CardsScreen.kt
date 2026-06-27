@@ -117,7 +117,7 @@ fun CardsScreen(
                         bottom = innerPadding.calculateBottomPadding() + 24.dp
                     )
                 ) {
-                    items(uiState.cards) { card ->
+                    items(uiState.cards, key = { it.id }) { card ->
                         CreditCardItem(card)
                     }
                 }
@@ -126,10 +126,13 @@ fun CardsScreen(
     }
 }
 
+private val indianCurrencyFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+
 @Composable
 fun CreditCardItem(card: CreditCard) {
-    val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US)
-    val formattedBalance = currencyFormatter.format(card.balance)
+    val formattedBalance = remember(card.balance) {
+        indianCurrencyFormatter.format(card.balance)
+    }
 
     Card(
         modifier = Modifier

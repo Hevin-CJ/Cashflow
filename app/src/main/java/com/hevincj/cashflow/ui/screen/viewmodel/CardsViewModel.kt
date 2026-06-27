@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.collections.immutable.toImmutableList
 
 @HiltViewModel
 class CardsViewModel @Inject constructor(
@@ -66,7 +67,7 @@ class CardsViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true)
             getCardsUseCase().collect { cards ->
                 _state.value = _state.value.copy(
-                    cards = cards,
+                    cards = cards.toImmutableList(),
                     isLoading = false
                 )
             }
@@ -80,7 +81,7 @@ class CardsViewModel @Inject constructor(
                 balance = balance,
                 cardNumber = cardNumber,
                 cardHolder = cardHolder,
-                gradientColors = gradientColors
+                gradientColors = gradientColors.toImmutableList()
             )
             addCardUseCase(card)
         }

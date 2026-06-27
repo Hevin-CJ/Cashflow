@@ -11,6 +11,7 @@ import com.hevincj.cashflow.domain.models.RecurringExpense
 import com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -26,7 +27,7 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
     override fun getAllRecurringExpenses(): Flow<List<RecurringExpense>> {
         return dao.getAllRecurringExpenses().map { entities ->
             entities.map { it.toDomain() }
-        }
+        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun getActiveRecurringExpenses(): List<RecurringExpense> = withContext(Dispatchers.IO) {
@@ -37,28 +38,41 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
         var entity = recurringExpense.toEntity().copy(isSynced = false)
 
         if (entity.serverId != null) {
-            val existing = dao.getActiveRecurringExpensesList().find { it.serverId == entity.serverId }
+            val existing = dao.getRecurringExpenseByServerId(entity.serverId)
             if (existing != null) {
                 entity = entity.copy(id = existing.id)
             }
         }
 
         val localId = dao.insertRecurringExpense(entity)
+
+        // FIX: Force immediate generation of the initial transaction entry locally
+        syncScheduler.triggerImmediateProcessing()
+        // Queue server metadata synchronization payload
         syncScheduler.scheduleUpsertSync(localId.toInt())
     }
 
     override suspend fun updateRecurringExpense(recurringExpense: RecurringExpense) = withContext(Dispatchers.IO) {
-        val entity = recurringExpense.toEntity().copy(isSynced = false)
-        dao.updateRecurringExpense(entity)
-        
         val isLocalId = recurringExpense.id.all { it.isDigit() }
-        if (isLocalId && recurringExpense.id.isNotEmpty()) {
-            syncScheduler.scheduleUpsertSync(recurringExpense.id.toInt())
-        } else if (recurringExpense.serverId != null) {
-            val existingLocal = dao.getActiveRecurringExpensesList().find { it.serverId == recurringExpense.serverId }
-            if (existingLocal != null) {
-                syncScheduler.scheduleUpsertSync(existingLocal.id)
-            }
+        val existing = if (isLocalId) {
+            dao.getRecurringExpenseById(recurringExpense.id.toInt())
+        } else {
+            dao.getRecurringExpenseByServerId(recurringExpense.id)
+        }
+
+        var entity = recurringExpense.toEntity().copy(isSynced = false)
+        if (existing != null) {
+            entity = entity.copy(id = existing.id)
+        }
+
+        dao.updateRecurringExpense(entity)
+
+        // FIX: Recalculate billing dates immediately when tracking adjustments occur
+        syncScheduler.triggerImmediateProcessing()
+
+        val localIdToSync = existing?.id ?: if (isLocalId && recurringExpense.id.isNotEmpty()) recurringExpense.id.toInt() else null
+        if (localIdToSync != null) {
+            syncScheduler.scheduleUpsertSync(localIdToSync)
         }
     }
 
@@ -68,9 +82,10 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
 
         var serverId: String? = null
         if (isLocalId) {
-            val existing = dao.getActiveRecurringExpensesList().find { it.id == recurringExpense.id.toInt() }
+            val idInt = recurringExpense.id.toInt()
+            val existing = dao.getRecurringExpenseById(idInt)
             serverId = existing?.serverId
-            dao.deleteById(recurringExpense.id.toInt())
+            dao.deleteById(idInt)
         } else {
             serverId = recurringExpense.id
             dao.deleteByServerId(recurringExpense.id)
@@ -84,8 +99,7 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
 
     override suspend fun syncRecurringExpenses(): String? = withContext(Dispatchers.IO) {
         try {
-            val currentLocalBeforeFetch = dao.getActiveRecurringExpensesList()
-            val unsyncedLocal = currentLocalBeforeFetch.filter { !it.isSynced }
+            val unsyncedLocal = dao.getUnsyncedRecurringExpenses()
             val pendingDeletes = pendingDeleteManager.getPendingRecurringDeletions()
 
             unsyncedLocal.forEach { entity ->
@@ -103,23 +117,33 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
                         .map { it.serverId!! }.toSet()
                     val activeDtos = dtos.filter { it.id !in activePendingDeletes && it.id !in unsyncedServerIds }
 
-                    val syncedLocal = currentLocal.filter { it.isSynced }
-                    val localSyncedMap = syncedLocal.filter { it.serverId != null }.associateBy { it.serverId }
+                    val localSyncedMap = currentLocal.filter { it.serverId != null }.associateBy { it.serverId }
 
                     val remoteEntities = activeDtos.map { dto ->
                         val domain = dto.toDomain()
                         val entity = domain.toEntity()
                         val existing = localSyncedMap[dto.id]
                         if (existing != null) {
-                            entity.copy(id = existing.id)
+                            val resolvedNextDueDate = maxOf(existing.nextDueDate, entity.nextDueDate)
+                            val resolvedLastProcessedDate = if (resolvedNextDueDate == existing.nextDueDate) {
+                                existing.lastProcessedDate ?: entity.lastProcessedDate
+                            } else {
+                                entity.lastProcessedDate ?: existing.lastProcessedDate
+                            }
+                            entity.copy(
+                                id = existing.id,
+                                nextDueDate = resolvedNextDueDate,
+                                lastProcessedDate = resolvedLastProcessedDate,
+                                isSynced = existing.isSynced && (resolvedNextDueDate == entity.nextDueDate)
+                            )
                         } else {
                             entity
                         }
                     }
 
                     val remoteServerIds = activeDtos.map { it.id }.toSet()
-                    val toDelete = syncedLocal.filter { local ->
-                        local.serverId != null && local.serverId !in remoteServerIds
+                    val toDelete = currentLocal.filter { local ->
+                        local.isSynced && local.serverId != null && local.serverId !in remoteServerIds
                     }
 
                     dao.refreshSyncedRecurringExpenses(

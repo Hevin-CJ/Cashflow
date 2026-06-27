@@ -2,6 +2,9 @@ package com.hevincj.cashflow.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.hevincj.cashflow.domain.models.TransactionType
+import com.hevincj.cashflow.domain.models.TransactionCategory
+import com.hevincj.cashflow.domain.models.RecurringFrequency
 
 @Entity(tableName = "recurring_expenses")
 data class RecurringExpenseEntity(
@@ -11,9 +14,9 @@ data class RecurringExpenseEntity(
     val isSynced: Boolean = false,
     val title: String,
     val amount: Double,
-    val category: String,
-    val type: String = "EXPENSE",
-    val frequency: String = "MONTHLY",
+    val category: TransactionCategory,
+    val type: TransactionType = TransactionType.EXPENSE,
+    val frequency: RecurringFrequency = RecurringFrequency.MONTHLY,
     val startDate: Long,
     val lastProcessedDate: Long? = null,
     val nextDueDate: Long,

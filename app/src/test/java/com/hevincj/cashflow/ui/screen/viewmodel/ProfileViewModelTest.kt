@@ -4,6 +4,7 @@ import com.hevincj.cashflow.MainDispatcherRule
 import com.hevincj.cashflow.domain.repository.AuthRepository
 import com.hevincj.cashflow.data.local.ThemeManager
 import com.hevincj.cashflow.data.local.ThemeMode
+import com.hevincj.cashflow.domain.repository.TransactionRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -29,13 +30,16 @@ class ProfileViewModelTest {
     @Mock
     lateinit var themeManager: ThemeManager
 
+    @Mock
+    lateinit var transactionRepository: TransactionRepository
+
     private lateinit var viewModel: ProfileViewModel
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(themeManager.themeMode).thenReturn(MutableStateFlow(ThemeMode.SYSTEM))
-        viewModel = ProfileViewModel(authRepository, themeManager)
+        viewModel = ProfileViewModel(authRepository, themeManager, transactionRepository)
     }
 
     @Test

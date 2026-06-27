@@ -1,5 +1,8 @@
 package com.hevincj.cashflow.domain.models
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class ReceiptScanResult(
     val merchant: String,
     val amount: Double,

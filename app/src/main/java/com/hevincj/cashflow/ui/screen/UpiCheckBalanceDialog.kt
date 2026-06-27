@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.collections.immutable.persistentListOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,10 +50,10 @@ fun UpiCheckBalanceDialog(
     val cardsState by cardsViewModel.state.collectAsState()
 
     val presetAccounts = remember {
-        listOf(
-            CreditCard("", 48250.00, "•••• 1234", "SBI Savings", listOf(0xFF1976D2, 0xFF0D47A1)),
-            CreditCard("", 124800.50, "•••• 5678", "HDFC Savings", listOf(0xFF2C3E50, 0xFF34495E)),
-            CreditCard("", 15200.75, "•••• 9012", "ICICI Salary", listOf(0xFFD84315, 0xFFBF360C))
+        persistentListOf(
+            CreditCard("", 48250.00, "•••• 1234", "SBI Savings", persistentListOf(0xFF1976D2, 0xFF0D47A1)),
+            CreditCard("", 124800.50, "•••• 5678", "HDFC Savings", persistentListOf(0xFF2C3E50, 0xFF34495E)),
+            CreditCard("", 15200.75, "•••• 9012", "ICICI Salary", persistentListOf(0xFFD84315, 0xFFBF360C))
         )
     }
 

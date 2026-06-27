@@ -29,6 +29,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,6 +51,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -95,6 +97,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -125,6 +128,18 @@ fun BatchScanScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+
+    val shimmerTransition = rememberInfiniteTransition(label = "batchShimmer")
+    val shimmerProgress = shimmerTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "batchShimmerProgress"
+    )
+    val shimmerProgressProvider = remember(shimmerProgress) { { shimmerProgress.value } }
 
     // Observe saveSuccess to pop the backstack
     LaunchedEffect(state.saveSuccess) {
@@ -183,7 +198,8 @@ fun BatchScanScreen(
                 modifier = Modifier.padding(innerPadding),
                 onNavigateBack = onNavigateBack,
                 viewModel = viewModel,
-                state = state
+                state = state,
+                shimmerProgressProvider = shimmerProgressProvider
             )
         } else {
             Box(
@@ -213,7 +229,8 @@ private fun BatchScanContent(
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit,
     viewModel: ScanViewModel,
-    state: ScanUiState
+    state: ScanUiState,
+    shimmerProgressProvider: () -> Float
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -237,6 +254,19 @@ private fun BatchScanContent(
         onDispose {
             cameraExecutor.shutdown()
             toneGenerator.release()
+            try {
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    try {
+                        val cameraProvider = cameraProviderFuture.get()
+                        cameraProvider.unbindAll()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }, ContextCompat.getMainExecutor(context))
+            } catch (e: Exception) {
+                // Safe ignore if provider is not available or initialized
+            }
         }
     }
 
@@ -489,7 +519,7 @@ private fun BatchScanContent(
                             .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(state.scannedCodes) { code ->
+                        itemsIndexed(state.scannedCodes, key = { index, code -> "$code-$index" }) { index, code ->
                              val productName = state.scannedProducts[code]?.productName
                              val isProductValid = com.hevincj.cashflow.utils.isProductValid(productName, code)
                             
@@ -510,7 +540,7 @@ private fun BatchScanContent(
                                         modifier = Modifier
                                             .size(180.dp, 16.dp)
                                             .clip(RoundedCornerShape(4.dp))
-                                            .batchScannerShimmerEffect()
+                                            .batchScannerShimmerEffect(shimmerProgressProvider)
                                     )
                                 } else {
                                     Text(
@@ -623,25 +653,18 @@ private fun BatchScanContent(
 }
 
 private fun Modifier.batchScannerShimmerEffect(
+    progressProvider: () -> Float,
     colors: List<Color> = listOf(
         Color(0xFFEAEAEA),
         Color(0xFFF5F5F5),
         Color(0xFFEAEAEA),
     )
-): Modifier = composed {
-    var progress by remember { mutableStateOf(0f) }
-    LaunchedEffect(Unit) {
-        val durationMillis = 1200L
-        while (true) {
-            withFrameMillis { frameTime ->
-                progress = (frameTime % durationMillis).toFloat() / durationMillis
-            }
-        }
-    }
-
-    this.drawBehind {
+): Modifier = this
+    .clearAndSetSemantics { }
+    .drawBehind {
         val width = size.width
         val height = size.height
+        val progress = progressProvider()
         val startOffsetX = (progress * 4f - 2f) * width
         drawRect(
             brush = Brush.linearGradient(
@@ -651,7 +674,6 @@ private fun Modifier.batchScannerShimmerEffect(
             )
         )
     }
-}
 
 @SuppressLint("UnsafeOptInUsageError")
 private fun processImageProxy(

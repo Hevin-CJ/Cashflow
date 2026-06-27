@@ -1,5 +1,8 @@
 package com.hevincj.cashflow.domain.models
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class ScanResult(
     val barcode: String?,
     val productName: String,

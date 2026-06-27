@@ -41,20 +41,37 @@ import com.hevincj.cashflow.ui.theme.BottomBarIconSelectedColor
 import com.hevincj.cashflow.ui.theme.BottomBarIconUnselectedColor
 import com.hevincj.cashflow.ui.theme.CardBackground
 import com.hevincj.cashflow.ui.theme.PrimaryGradient
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.hevincj.cashflow.ui.screen.viewmodel.CardsViewModel
+import com.hevincj.cashflow.ui.screen.viewmodel.HomeViewModel
+import com.hevincj.cashflow.ui.screen.viewmodel.ProfileViewModel
+import com.hevincj.cashflow.ui.screen.viewmodel.StatsViewModel
+import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
 import com.hevincj.cashflow.utils.SmoothNotchedShape
+
+val LocalHomeViewModel = staticCompositionLocalOf<HomeViewModel?> { null }
+val LocalStatsViewModel = staticCompositionLocalOf<StatsViewModel?> { null }
+val LocalCardsViewModel = staticCompositionLocalOf<CardsViewModel?> { null }
+val LocalProfileViewModel = staticCompositionLocalOf<ProfileViewModel?> { null }
+val LocalScanViewModel = staticCompositionLocalOf<ScanViewModel?> { null }
 
 @Composable
 fun MainScreen(
     rootNavController: NavController
 ) {
     val navController = rememberNavController()
+    val homeViewModel = LocalHomeViewModel.current ?: hiltViewModel()
+    val statsViewModel = LocalStatsViewModel.current ?: hiltViewModel()
+    val cardsViewModel = LocalCardsViewModel.current ?: hiltViewModel()
+    val profileViewModel = LocalProfileViewModel.current ?: hiltViewModel()
+    val scanViewModel = LocalScanViewModel.current ?: hiltViewModel()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = BackgroundGray,
         bottomBar = { CustomBottomBarWithFab(navController = navController, rootNavController = rootNavController) },
     ) { innerPadding ->
-        
 
         NavHost(
             navController = navController,
@@ -63,45 +80,44 @@ fun MainScreen(
             composable("home_screen") {
                 HomeScreen(
                     innerPadding = innerPadding,
-                    rootNavController = rootNavController
+                    rootNavController = rootNavController,
+                    viewModel = homeViewModel,
+                    scanViewModel = scanViewModel
                 )
             }
             composable("stats_screen") {
                 StatisticsScreen(
-                    innerPadding = innerPadding
+                    innerPadding = innerPadding,
+                    viewModel = statsViewModel
                 )
             }
             composable("wallet_screen") {
-               CardsScreen(
-                   rootNavController = rootNavController,
-                   innerPadding = innerPadding
-               )
+                CardsScreen(
+                    rootNavController = rootNavController,
+                    innerPadding = innerPadding,
+                    viewModel = cardsViewModel
+                )
             }
             composable("profile_screen") {
-               ProfileScreen(
-                   rootNavController = rootNavController,
-                   innerPaddingValues = innerPadding
-               )
+                ProfileScreen(
+                    rootNavController = rootNavController,
+                    innerPaddingValues = innerPadding,
+                    viewModel = profileViewModel
+                )
             }
         }
     }
 }
 
-
 @Composable
 private fun CustomBottomBarWithFab(navController: NavController, rootNavController: NavController) {
-
-
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route
-
-
 
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.BottomCenter
     ) {
-
         BottomAppBar(
             modifier = Modifier
                 .fillMaxWidth()
@@ -119,15 +135,12 @@ private fun CustomBottomBarWithFab(navController: NavController, rootNavControll
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
-
                     IconButton(onClick = {
                         navController.navigate("home_screen") {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
-
                     }, modifier = Modifier.weight(1f)) {
                         val tint = if (currentRoute == "home_screen") BottomBarIconSelectedColor else BottomBarIconUnselectedColor
                         Icon(Icons.Rounded.Home, contentDescription = "Home", tint = tint)
@@ -144,9 +157,7 @@ private fun CustomBottomBarWithFab(navController: NavController, rootNavControll
                         Icon(Icons.Rounded.BarChart, contentDescription = "Stats", tint = tint)
                     }
 
-
                     Spacer(modifier = Modifier.width(80.dp))
-
 
                     IconButton(onClick = {
                         navController.navigate("wallet_screen") {
@@ -172,6 +183,7 @@ private fun CustomBottomBarWithFab(navController: NavController, rootNavControll
                 }
             }
         }
+
         FloatingActionButton(
             onClick = { rootNavController.navigate("add_transaction") },
             shape = CircleShape,

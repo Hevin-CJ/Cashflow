@@ -5,9 +5,9 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.navigation.NavController
 import androidx.test.rule.GrantPermissionRule
-import com.hevincj.cashflow.domain.repository.ScanRepository
-import com.hevincj.cashflow.domain.repository.TransactionRepository
+import com.hevincj.cashflow.ui.screen.state.ScanUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.mock
@@ -22,14 +22,12 @@ class ScanOptionsUiTest {
     val grantPermissionRule: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.CAMERA)
 
     private val navController = mock<NavController>()
-    private val scanRepository = mock<ScanRepository>()
-    private val transactionRepository = mock<TransactionRepository>()
     private val scanViewModel = mock<ScanViewModel>()
+    private val scanStateFlow = MutableStateFlow(ScanUiState())
 
     @org.junit.Before
     fun setUp() {
-        whenever(scanViewModel.scanRepository).thenReturn(scanRepository)
-        whenever(scanViewModel.transactionRepository).thenReturn(transactionRepository)
+        whenever(scanViewModel.state).thenReturn(scanStateFlow)
     }
 
     @Test

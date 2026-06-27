@@ -17,6 +17,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import kotlinx.collections.immutable.persistentListOf
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreditCardRepositoryImplTest {
@@ -71,7 +72,7 @@ class CreditCardRepositoryImplTest {
             balance = 500.0,
             cardNumber = "5555 6666 7777 8888",
             cardHolder = "Jane Doe",
-            gradientColors = listOf(0xff123456L, 0xff789abcL)
+            gradientColors = persistentListOf(0xff123456L, 0xff789abcL)
         )
 
         repository.addCard(domainCard)

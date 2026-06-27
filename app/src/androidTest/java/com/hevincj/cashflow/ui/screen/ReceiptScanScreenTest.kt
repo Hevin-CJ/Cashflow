@@ -2,8 +2,9 @@ package com.hevincj.cashflow.ui.screen
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import com.hevincj.cashflow.domain.repository.ScanRepository
+import com.hevincj.cashflow.ui.screen.state.ScanUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.mock
@@ -14,12 +15,12 @@ class ReceiptScanScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private val scanRepository = mock<ScanRepository>()
     private val scanViewModel = mock<ScanViewModel>()
+    private val scanStateFlow = MutableStateFlow(ScanUiState())
 
     @org.junit.Before
     fun setUp() {
-        whenever(scanViewModel.scanRepository).thenReturn(scanRepository)
+        whenever(scanViewModel.state).thenReturn(scanStateFlow)
     }
 
     @Test

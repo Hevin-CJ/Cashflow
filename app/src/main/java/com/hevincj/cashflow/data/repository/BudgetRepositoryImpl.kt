@@ -11,6 +11,7 @@ import com.hevincj.cashflow.domain.models.Budget
 import com.hevincj.cashflow.domain.repository.BudgetRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -26,7 +27,7 @@ class BudgetRepositoryImpl @Inject constructor(
     override fun getBudgetsForMonth(month: Int, year: Int): Flow<List<Budget>> {
         return dao.getBudgetsForMonth(month, year).map { entities ->
             entities.map { it.toDomain() }
-        }
+        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun setBudget(budget: Budget) = withContext(Dispatchers.IO) {

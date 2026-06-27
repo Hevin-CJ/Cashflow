@@ -1,8 +1,10 @@
 package com.hevincj.cashflow.ui.screen.state
 
+import androidx.compose.runtime.Immutable
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.models.TransactionCategory
 
+@Immutable
 data class AddTransactionUiState(
     val title: String = "",
     val amount: String = "",

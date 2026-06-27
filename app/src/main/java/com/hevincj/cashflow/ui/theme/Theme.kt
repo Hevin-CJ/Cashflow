@@ -80,17 +80,13 @@ val CardBackground: Color
     @Composable
     get() = if (LocalDarkTheme.current) Color(0xFF1E1E1E) else Color.White
 
-val PrimaryGradient: Brush
-    @Composable
-    get() = remember {
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0xFF64B5F6),
-                Color(0xFF9575CD),
-                Color(0xFFFF8A65)
-            )
-        )
-    }
+val PrimaryGradient: Brush = Brush.linearGradient(
+    colors = listOf(
+        Color(0xFF64B5F6),
+        Color(0xFF9575CD),
+        Color(0xFFFF8A65)
+    )
+)
 
 @Composable
 fun CashFlowTheme(

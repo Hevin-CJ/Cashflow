@@ -1,6 +1,7 @@
 package com.hevincj.cashflow.data.repository
 
 import com.hevincj.cashflow.data.local.dao.TransactionDao
+import com.hevincj.cashflow.data.local.dao.RecurringExpenseDao
 import com.hevincj.cashflow.data.local.entity.TransactionEntity
 import com.hevincj.cashflow.data.local.PendingDeleteManager
 import com.hevincj.cashflow.data.remote.api.TransactionApi
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ShoppingBag
 import com.hevincj.cashflow.data.worker.TransactionSyncManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -23,6 +25,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -108,8 +111,8 @@ class TransactionRepositoryImplTest {
             amount = amount,
             iconName = "GROCERIES",
             iconBgColor = sampleColor.toArgb(),
-            type = type,
-            category = "GROCERIES",
+            type = TransactionType.valueOf(type),
+            category = TransactionCategory.GROCERIES,
             description = "desc",
             isSynced = isSynced
         )
@@ -163,6 +166,7 @@ class TransactionRepositoryImplTest {
     fun testInsertTransactionUnsyncedUpdatesLocallyOnly() = runTest {
         val domainTransaction = createDomainTransaction("server_123", 100.0, TransactionType.INCOME, false)
         val existingEntities = listOf(createEntityTransaction(10, "server_123", 100.0, "INCOME", false))
+        whenever(dao.getTransactionByServerId("server_123")).thenReturn(existingEntities.first())
         whenever(dao.getAllTransactions()).thenReturn(flowOf(existingEntities))
         whenever(dao.insertTransaction(any())).thenReturn(10L)
 
@@ -197,6 +201,7 @@ class TransactionRepositoryImplTest {
     fun testDeleteTransactionWithoutServerIdUsesIdAndFindsServerIdToSync() = runTest {
         val domainTransaction = createDomainTransaction("123", 100.0, TransactionType.INCOME, true)
         val existing = createEntityTransaction(123, "server_456", 100.0, "INCOME", true)
+        whenever(dao.getTransactionById(123)).thenReturn(existing)
         whenever(dao.getAllTransactions()).thenReturn(flowOf(listOf(existing)))
 
         repository.deleteTransaction(domainTransaction)
@@ -211,7 +216,8 @@ class TransactionRepositoryImplTest {
     fun testSyncTransactionsFetchesRemoteAndDoesNotPushInline() = runTest {
         // Mock transaction locally
         val synced = createEntityTransaction(11, "server_old", 100.0, "INCOME", true)
-        whenever(dao.getAllTransactions()).thenReturn(flowOf(listOf(synced)))
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
+        whenever(dao.getAllTransactionsList()).thenReturn(listOf(synced))
 
         // Mock remote fetch success
         val remoteDtos = listOf(
@@ -245,8 +251,8 @@ class TransactionRepositoryImplTest {
         // Timestamp 1500L, serverId = "server_deleted"
         val syncedDeleted = createEntityTransaction(11, "server_deleted", 100.0, "INCOME", true).copy(timestamp = 1500L)
         
-        // Return this inside getAllTransactions
-        whenever(dao.getAllTransactions()).thenReturn(flowOf(listOf(syncedDeleted)))
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
+        whenever(dao.getAllTransactionsList()).thenReturn(listOf(syncedDeleted))
 
         // Remote fetch returns a transaction with timestamp 1500L, which is the oldest remote timestamp
         val remoteDtos = listOf(
@@ -272,28 +278,28 @@ class TransactionRepositoryImplTest {
 
     @Test
     fun testSyncTransactionsUnknownHostExceptionReturnsNoInternet() = runTest {
-        whenever(dao.getAllTransactions()).thenReturn(flowOf(emptyList()))
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
         whenever(api.getTransactions(any(), any())).thenAnswer { throw UnknownHostException() }
         assertEquals("No internet connection", repository.syncTransactions())
     }
 
     @Test
     fun testSyncTransactionsConnectExceptionReturnsFailedToConnect() = runTest {
-        whenever(dao.getAllTransactions()).thenReturn(flowOf(emptyList()))
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
         whenever(api.getTransactions(any(), any())).thenAnswer { throw ConnectException() }
         assertEquals("Failed to connect to the server.", repository.syncTransactions())
     }
 
     @Test
     fun testSyncTransactionsSocketTimeoutExceptionReturnsTimeout() = runTest {
-        whenever(dao.getAllTransactions()).thenReturn(flowOf(emptyList()))
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
         whenever(api.getTransactions(any(), any())).thenAnswer { throw SocketTimeoutException() }
         assertEquals("Connection timed out.", repository.syncTransactions())
     }
 
     @Test
     fun testSyncTransactionsIOExceptionReturnsUnreachable() = runTest {
-        whenever(dao.getAllTransactions()).thenReturn(flowOf(emptyList()))
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
         whenever(api.getTransactions(any(), any())).thenAnswer { throw IOException() }
         assertEquals("Server is unreachable. Please try again later.", repository.syncTransactions())
     }
@@ -306,10 +312,9 @@ class TransactionRepositoryImplTest {
         // Synced version after inline sync
         val syncedLocal = unsyncedLocal.copy(serverId = "server_matched", isSynced = true)
         
-        // Mock getAllTransactions to return unsynced first, then synced
-        whenever(dao.getAllTransactions())
-            .thenReturn(flowOf(listOf(unsyncedLocal)))
-            .thenReturn(flowOf(listOf(syncedLocal)))
+        // Mock getUnsyncedTransactions and getAllTransactionsList
+        whenever(dao.getUnsyncedTransactions()).thenReturn(listOf(unsyncedLocal))
+        whenever(dao.getAllTransactionsList()).thenReturn(listOf(syncedLocal))
         
         // Stub the syncManager delegator
         whenever(syncManager.syncSpecificTransaction(any(), any(), any())).thenReturn(null)
@@ -338,5 +343,57 @@ class TransactionRepositoryImplTest {
         assertEquals("server_matched", insertCaptor.firstValue[0].serverId)
     }
 
+    @Test
+    fun testUpdateTransactionOfflineFirstUpdatesLocallyAndSchedulesSync() = runTest {
+        val domainTransaction = createDomainTransaction("server_123", 150.0, TransactionType.EXPENSE, true)
+        val existingEntity = createEntityTransaction(10, "server_123", 100.0, "EXPENSE", true)
+        whenever(dao.getTransactionByServerId("server_123")).thenReturn(existingEntity)
+        whenever(dao.insertTransaction(any())).thenReturn(10L)
+
+        repository.updateTransaction(domainTransaction)
+
+        val captor = argumentCaptor<TransactionEntity>()
+        verify(dao, times(1)).insertTransaction(captor.capture())
+
+        val updatedInsert = captor.firstValue
+        assertEquals(10, updatedInsert.id)
+        assertEquals("server_123", updatedInsert.serverId)
+        assertEquals(false, updatedInsert.isSynced)
+        assertTrue(updatedInsert.lastModifiedLocal > 0)
+
+        verify(api, never()).updateTransaction(any(), any())
+        verify(syncScheduler).scheduleUpsertSync(10)
+    }
+
+    @Test
+    fun testSyncTransactionsDoesNotDeleteRecentlyModifiedOrphans() = runTest {
+        val currentTime = System.currentTimeMillis()
+        val localModified = createEntityTransaction(12, "server_modified", 200.0, "EXPENSE", true).copy(
+            lastModifiedLocal = currentTime - 2000L,
+            timestamp = currentTime
+        )
+
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
+        whenever(dao.getAllTransactionsList()).thenReturn(listOf(localModified))
+
+        val remoteDtos = listOf(
+            TransactionDto("server_other", "user", 50.0, "INCOME", "GROCERIES", "desc", currentTime)
+        )
+        whenever(api.getTransactions(any(), any())).thenReturn(Response.success(remoteDtos))
+
+        val result = repository.syncTransactions()
+
+        assertNull(result)
+
+        val deleteCaptor = argumentCaptor<List<TransactionEntity>>()
+        val insertCaptor = argumentCaptor<List<TransactionEntity>>()
+        verify(dao).refreshSyncedTransactions(deleteCaptor.capture(), insertCaptor.capture())
+
+        assertTrue(deleteCaptor.firstValue.none { it.serverId == "server_modified" })
+        assertEquals(0, deleteCaptor.firstValue.size)
+        assertEquals(1, insertCaptor.firstValue.size)
+        assertEquals("server_other", insertCaptor.firstValue[0].serverId)
+    }
 }
+
 

@@ -8,12 +8,13 @@ import com.hevincj.cashflow.ui.screen.state.CardsUiState
 import com.hevincj.cashflow.ui.screen.state.HomeUiState
 import com.hevincj.cashflow.ui.screen.state.ProfileUiState
 import com.hevincj.cashflow.ui.screen.state.StatsUiState
+import com.hevincj.cashflow.ui.screen.state.ScanUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.CardsViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.HomeViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.ProfileViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.StatsViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
-import com.hevincj.cashflow.domain.repository.ScanRepository
+import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -32,12 +33,12 @@ class MainScreenTest {
     private val statsViewModel = mock<StatsViewModel>()
     private val cardsViewModel = mock<CardsViewModel>()
     private val profileViewModel = mock<ProfileViewModel>()
-    private val scanRepository = mock<ScanRepository>()
     private val scanViewModel = mock<ScanViewModel>()
+    private val scanStateFlow = MutableStateFlow(ScanUiState())
 
     @org.junit.Before
     fun setUp() {
-        whenever(scanViewModel.scanRepository).thenReturn(scanRepository)
+        whenever(scanViewModel.state).thenReturn(scanStateFlow)
     }
 
     // States
@@ -54,16 +55,16 @@ class MainScreenTest {
         whenever(statsViewModel.state).thenReturn(statsStateFlow)
         whenever(cardsViewModel.state).thenReturn(cardsStateFlow)
         whenever(profileViewModel.state).thenReturn(profileStateFlow)
-
         composeTestRule.setContent {
-            MainScreen(
-                rootNavController = rootNavController,
-                homeViewModel = homeViewModel,
-                statsViewModel = statsViewModel,
-                cardsViewModel = cardsViewModel,
-                profileViewModel = profileViewModel,
-                scanViewModel = scanViewModel
-            )
+            CompositionLocalProvider(
+                LocalHomeViewModel provides homeViewModel,
+                LocalStatsViewModel provides statsViewModel,
+                LocalCardsViewModel provides cardsViewModel,
+                LocalProfileViewModel provides profileViewModel,
+                LocalScanViewModel provides scanViewModel
+            ) {
+                MainScreen(rootNavController = rootNavController)
+            }
         }
 
         // Verify initial screen is HomeScreen (check dashboard element)

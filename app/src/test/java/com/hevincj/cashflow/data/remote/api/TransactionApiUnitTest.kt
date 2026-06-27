@@ -19,6 +19,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import retrofit2.Response
 
+import com.hevincj.cashflow.data.local.dao.RecurringExpenseDao
 import com.hevincj.cashflow.data.worker.TransactionSyncManager
 
 class TransactionApiUnitTest {
@@ -40,6 +41,9 @@ class TransactionApiUnitTest {
 
     @Mock
     lateinit var syncManager: TransactionSyncManager
+
+    @Mock
+    lateinit var recurringExpenseDao: RecurringExpenseDao
 
     private lateinit var repository: TransactionRepositoryImpl
 
@@ -65,7 +69,8 @@ class TransactionApiUnitTest {
             val expectedResponse = Response.success(listOf(remoteDto))
             
             whenever(transactionApi.getTransactions(any(), any())).thenReturn(expectedResponse)
-            whenever(dao.getAllTransactions()).thenReturn(flowOf(emptyList()))
+            whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
+            whenever(dao.getAllTransactionsList()).thenReturn(emptyList())
 
             // Act: Sync transactions
             val error = repository.syncTransactions(limit = 25)
@@ -84,7 +89,8 @@ class TransactionApiUnitTest {
             val expectedResponse = Response.error<List<TransactionDto>>(403, errorResponseBody)
             
             whenever(transactionApi.getTransactions(any(), any())).thenReturn(expectedResponse)
-            whenever(dao.getAllTransactions()).thenReturn(flowOf(emptyList()))
+            whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
+            whenever(dao.getAllTransactionsList()).thenReturn(emptyList())
 
             // Act: Sync transactions
             val error = repository.syncTransactions(limit = 25)

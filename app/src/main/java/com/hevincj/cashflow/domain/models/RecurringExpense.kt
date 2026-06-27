@@ -1,16 +1,16 @@
 package com.hevincj.cashflow.domain.models
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class RecurringExpense(
     val id: String,
+    val localId: Int = 0, // Fixed invariant tracking index
     val serverId: String? = null,
     val isSynced: Boolean = false,
-    val title: String,
-    val amount: Double,
-    val category: TransactionCategory,
-    val type: TransactionType,
-    val frequency: String,
+    val frequency: RecurringFrequency,
     val startDate: Long,
     val lastProcessedDate: Long? = null,
     val nextDueDate: Long,
-    val description: String? = null
+    val transaction: Transaction
 )

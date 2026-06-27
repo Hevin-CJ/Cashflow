@@ -21,21 +21,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import androidx.lifecycle.SavedStateHandle
+import com.hevincj.cashflow.domain.usecase.GetTransactionByIdUseCase
 import com.hevincj.cashflow.domain.usecase.GetTransactionsUseCase
+import com.hevincj.cashflow.domain.usecase.UpdateTransactionUseCase
 import kotlinx.coroutines.flow.first
 
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
     private val addTransactionUseCase: AddTransactionUseCase,
+    private val updateTransactionUseCase: UpdateTransactionUseCase,
     private val getTransactionsUseCase: GetTransactionsUseCase,
+    private val getTransactionByIdUseCase: GetTransactionByIdUseCase,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-
+ 
     private val _state = MutableStateFlow(AddTransactionUiState())
     val state: StateFlow<AddTransactionUiState> = _state.asStateFlow()
-
+ 
     private var scannedBarcode: String? = null
-
+ 
     init {
         val txId: String? = savedStateHandle["transactionId"]
         if (txId != null) {
@@ -51,9 +55,9 @@ class AddTransactionViewModel @Inject constructor(
             val prefillCategory: String? = savedStateHandle["category"]
             val prefillDescription: String? = savedStateHandle["description"]
             val prefillBarcode: String? = savedStateHandle["barcode"]
-
+ 
             scannedBarcode = prefillBarcode
-
+ 
             val sanitizedAmount = prefillAmount?.let { amt ->
                 var dotFound = false
                 val cleaned = amt.filter { char ->
@@ -82,19 +86,19 @@ class AddTransactionViewModel @Inject constructor(
                     limited
                 }
             } ?: ""
-
+ 
             if (prefillTitle != null || prefillAmount != null || prefillCategory != null || prefillDescription != null || prefillBarcode != null) {
                 val parsedCategory = prefillCategory?.let {
                     TransactionCategory.fromString(it)
                 } ?: TransactionCategory.FOOD
-
+ 
                 val combinedDescription = when {
                     prefillTitle != null && !prefillDescription.isNullOrBlank() -> "$prefillTitle - $prefillDescription"
                     prefillTitle != null -> prefillTitle
                     !prefillDescription.isNullOrBlank() -> prefillDescription
                     else -> ""
                 }
-
+ 
                 _state.value = AddTransactionUiState(
                     title = prefillTitle ?: "",
                     amount = sanitizedAmount,
@@ -105,20 +109,19 @@ class AddTransactionViewModel @Inject constructor(
             }
         }
     }
-
+ 
     private fun loadTransactionForEdit(txId: String) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
             try {
-                val transactions = getTransactionsUseCase().first()
-                val transaction = transactions.find { it.id == txId }
+                val transaction = getTransactionByIdUseCase(txId)
                 if (transaction != null) {
                     val loadedAmount = kotlin.math.abs(transaction.amount)
                     val cappedAmount = if (loadedAmount > 999999.0) 999999.0 else loadedAmount
                     val formattedAmount = String.format(java.util.Locale.US, "%.2f", cappedAmount)
                         .replace(Regex("\\.00$"), "")
                         .replace(Regex("(\\.[1-9])0$"), "$1")
-
+ 
                     _state.value = _state.value.copy(
                         title = transaction.title,
                         amount = formattedAmount,
@@ -143,7 +146,7 @@ class AddTransactionViewModel @Inject constructor(
             }
         }
     }
-
+ 
     fun onAmountChange(value: String) {
         if (value.isEmpty()) {
             _state.value = _state.value.copy(amount = value, errorMessage = null)
@@ -154,7 +157,7 @@ class AddTransactionViewModel @Inject constructor(
             }
         }
     }
-
+ 
     fun onTypeChange(value: TransactionType) {
         val currentCategory = _state.value.category
         val updatedCategory = if (currentCategory.supportedTypes.contains(value)) {
@@ -164,15 +167,15 @@ class AddTransactionViewModel @Inject constructor(
         }
         _state.value = _state.value.copy(type = value, category = updatedCategory)
     }
-
+ 
     fun onCategoryChange(value: TransactionCategory) {
         _state.value = _state.value.copy(category = value)
     }
-
+ 
     fun onDescriptionChange(value: String) {
         _state.value = _state.value.copy(description = value)
     }
-
+ 
     fun saveTransaction() {
         val currentState = _state.value
         val amt = currentState.amount.toDoubleOrNull()
@@ -184,23 +187,23 @@ class AddTransactionViewModel @Inject constructor(
             _state.value = _state.value.copy(errorMessage = "Amount cannot exceed $999,999.00")
             return
         }
-
+ 
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
-
+ 
         viewModelScope.launch {
             try {
                 val icon = currentState.category.icon
                 val iconBgColor = currentState.category.iconBgColor
-
+ 
                 val finalAmount = if (currentState.type == TransactionType.EXPENSE) -amt else amt
-
+ 
                 val finalDescription = currentState.description
                 val finalTitle = if (currentState.title.isNotBlank()) currentState.title else (if (currentState.description.isNotBlank()) currentState.description else currentState.category.displayName)
-
+ 
                 if (currentState.isEditMode && currentState.transactionId != null) {
-                    val originalTx = getTransactionsUseCase().first().find { it.id == currentState.transactionId }
+                    val originalTx = getTransactionByIdUseCase(currentState.transactionId)
                     val originalTimestamp = originalTx?.timestamp ?: System.currentTimeMillis()
-
+ 
                     val updatedTransaction = Transaction(
                         id = currentState.transactionId,
                         title = finalTitle,
@@ -213,9 +216,11 @@ class AddTransactionViewModel @Inject constructor(
                         description = finalDescription,
                         isSynced = false,
                         barcode = scannedBarcode,
-                        productName = if (scannedBarcode != null) (if (currentState.title.isNotBlank()) currentState.title.trim() else null) else null
+                        productName = if (scannedBarcode != null) (if (currentState.title.isNotBlank()) currentState.title.trim() else null) else null,
+                        formattedDate = com.hevincj.cashflow.utils.DateTimeUtils.formatTimestamp(originalTimestamp),
+                        lastModifiedLocal = System.currentTimeMillis()
                     )
-                    addTransactionUseCase(updatedTransaction)
+                    updateTransactionUseCase(updatedTransaction)
                 } else {
                     val currentTimestamp = System.currentTimeMillis()
                     val newTransaction = Transaction(
@@ -230,7 +235,9 @@ class AddTransactionViewModel @Inject constructor(
                         description = finalDescription,
                         isSynced = false,
                         barcode = scannedBarcode,
-                        productName = if (scannedBarcode != null) (if (currentState.title.isNotBlank()) currentState.title.trim() else null) else null
+                        productName = if (scannedBarcode != null) (if (currentState.title.isNotBlank()) currentState.title.trim() else null) else null,
+                        formattedDate = com.hevincj.cashflow.utils.DateTimeUtils.formatTimestamp(currentTimestamp),
+                        lastModifiedLocal = System.currentTimeMillis()
                     )
                     addTransactionUseCase(newTransaction)
                 }

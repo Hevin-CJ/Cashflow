@@ -11,6 +11,53 @@ import javax.inject.Singleton
 class RecurringExpenseSyncScheduler @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
+
+    // Triggered on-demand when a subscription is added or updated by the user
+    fun triggerImmediateProcessing() {
+        try {
+            val immediateRequest = OneTimeWorkRequestBuilder<RecurringExpenseWorker>()
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.NOT_REQUIRED).build())
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "immediate_recurring_processing",
+                ExistingWorkPolicy.REPLACE,
+                immediateRequest
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun schedulePeriodicRecurringProcessing() {
+        try {
+            triggerImmediateProcessing()
+
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+                .build()
+
+            val periodicRequest = PeriodicWorkRequestBuilder<RecurringExpenseWorker>(
+                1, TimeUnit.HOURS
+            )
+                .setConstraints(constraints)
+                .setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS
+                )
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                "periodic_recurring_processing",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                periodicRequest
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun scheduleUpsertSync(localId: Int) {
         try {
             val constraints = Constraints.Builder()
@@ -34,7 +81,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "sync_recurring_upsert_$localId",
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 syncRequest
             )
         } catch (e: Exception) {

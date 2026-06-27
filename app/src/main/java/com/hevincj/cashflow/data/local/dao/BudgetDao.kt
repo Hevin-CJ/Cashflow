@@ -15,7 +15,7 @@ interface BudgetDao {
     @Query("SELECT * FROM budgets WHERE category = :category AND month = :month AND year = :year")
     suspend fun getBudgetByCategoryAndMonth(category: String, month: Int, year: Int): BudgetEntity?
 
-    @Query("SELECT * FROM budgets WHERE isSynced = 0")
+    @Query("SELECT * FROM budgets WHERE isSynced = 0 ")
     suspend fun getUnsyncedBudgets(): List<BudgetEntity>
 
     @Query("SELECT * FROM budgets WHERE id = :id")

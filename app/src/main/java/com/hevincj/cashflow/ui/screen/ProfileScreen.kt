@@ -20,8 +20,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
+import android.content.Context
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import com.hevincj.cashflow.data.local.ThemeMode
 import com.hevincj.cashflow.ui.screen.viewmodel.ProfileViewModel
+import com.hevincj.cashflow.ui.screen.viewmodel.ExportDateRange
 import com.hevincj.cashflow.ui.theme.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +41,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.hevincj.cashflow.utils.CsvExporter
+import com.hevincj.cashflow.utils.PdfExporter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ProfileMenuItem(
     val title: String,
@@ -39,9 +60,8 @@ data class ProfileMenuItem(
 
 val menuItems = listOf(
     ProfileMenuItem("Account Info", Icons.Default.Person, Color(0xFF635BFF)),
-    ProfileMenuItem("Security Code", Icons.Default.Shield, Color(0xFF65C466)),
+    ProfileMenuItem("Export To CSV/PDF", Icons.Default.Share, Color(0xFF65C466)),
     ProfileMenuItem("Subscriptions & Recurring", Icons.Default.Autorenew, Color(0xFFFF9F1C)),
-    ProfileMenuItem("Privacy Policy", Icons.Default.Lock, Color(0xFF3B5973)),
     ProfileMenuItem("Settings", Icons.Default.Settings, Color(0xFF32827A)),
     ProfileMenuItem("Logout", Icons.AutoMirrored.Filled.ExitToApp, Color(0xFFE93B3A))
 )
@@ -55,6 +75,83 @@ fun ProfileScreen(
     val uiState by viewModel.state.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    
+    var selectedRange by remember { mutableStateOf(ExportDateRange.CURRENT_MONTH) }
+    var expandedRange by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    fun openSavedFile(uri: Uri, mimeType: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Open file"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // CSV Launcher
+    val createCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch(Dispatchers.IO) {
+                val transactions = viewModel.getTransactionsForRange(selectedRange)
+                val success = CsvExporter.exportToCsv(context, uri, transactions)
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        coroutineScope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Export saved successfully",
+                                actionLabel = "Open",
+                                duration = SnackbarDuration.Long
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                openSavedFile(uri, "text/csv")
+                            }
+                        }
+                    } else {
+                        Toast.makeText(context, "Failed to export CSV.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    // PDF Launcher
+    val createPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch(Dispatchers.IO) {
+                val transactions = viewModel.getTransactionsForRange(selectedRange)
+                val success = PdfExporter.exportToPdf(context, uri, transactions)
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        coroutineScope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Export saved successfully",
+                                actionLabel = "Open",
+                                duration = SnackbarDuration.Long
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                openSavedFile(uri, "application/pdf")
+                            }
+                        }
+                    } else {
+                        Toast.makeText(context, "Failed to export PDF.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(uiState.isLoggedOut) {
         if (uiState.isLoggedOut) {
@@ -134,31 +231,146 @@ fun ProfileScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundGray)
-            .padding(innerPaddingValues)
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(modifier = Modifier.height(64.dp))
-        ProfileHeader()
-        Spacer(modifier = Modifier.height(48.dp))
-
-        menuItems.forEach { item ->
-            MenuItemRow(
-                item = item,
-                onClick = {
-                    when (item.title) {
-                        "Logout" -> showLogoutDialog = true
-                        "Settings" -> showSettingsDialog = true
-                        "Subscriptions & Recurring" -> rootNavController.navigate("subscription_manager")
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false },
+            title = { Text("Export Transactions", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Select Date Range:", fontSize = 14.sp, color = Color.Gray)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BackgroundGray)
+                            .clickable { expandedRange = true }
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = when (selectedRange) {
+                                    ExportDateRange.CURRENT_MONTH -> "Current Month"
+                                    ExportDateRange.PREVIOUS_MONTH -> "Previous Month"
+                                    ExportDateRange.CURRENT_YEAR -> "Current Year"
+                                    ExportDateRange.PREVIOUS_YEAR -> "Previous Year"
+                                    ExportDateRange.ALL -> "All Transactions"
+                                },
+                                fontWeight = FontWeight.Medium
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Range"
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = expandedRange,
+                            onDismissRequest = { expandedRange = false },
+                            modifier = Modifier.fillMaxWidth(0.6f).background(CardBackground)
+                        ) {
+                            ExportDateRange.values().forEach { range ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = when (range) {
+                                                ExportDateRange.CURRENT_MONTH -> "Current Month"
+                                                ExportDateRange.PREVIOUS_MONTH -> "Previous Month"
+                                                ExportDateRange.CURRENT_YEAR -> "Current Year"
+                                                ExportDateRange.PREVIOUS_YEAR -> "Previous Year"
+                                                ExportDateRange.ALL -> "All Transactions"
+                                            }
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedRange = range
+                                        expandedRange = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Choose format to export:")
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            showExportDialog = false
+                            val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm-ss"))
+                            createCsvLauncher.launch("transactions_${selectedRange.name.lowercase()}_$timestamp.csv")
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = IncomePurpleColor)
+                    ) {
+                        Text("CSV")
+                    }
+                    Button(
+                        onClick = {
+                            showExportDialog = false
+                            val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm-ss"))
+                            createPdfLauncher.launch("transactions_${selectedRange.name.lowercase()}_$timestamp.pdf")
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = IncomePurpleColor)
+                    ) {
+                        Text("PDF")
                     }
                 }
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = CardBackground
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BackgroundGray)
+                .padding(innerPaddingValues)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(64.dp))
+            ProfileHeader()
+            Spacer(modifier = Modifier.height(48.dp))
+
+            menuItems.forEach { item ->
+                MenuItemRow(
+                    item = item,
+                    onClick = {
+                        when (item.title) {
+                            "Logout" -> showLogoutDialog = true
+                            "Settings" -> showSettingsDialog = true
+                            "Subscriptions & Recurring" -> rootNavController.navigate("subscription_manager")
+                            "Export To CSV/PDF" -> showExportDialog = true
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = innerPaddingValues.calculateBottomPadding() + 16.dp)
+        )
     }
 }
 

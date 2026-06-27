@@ -1,6 +1,5 @@
 package com.hevincj.cashflow.ui.screen
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,10 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -33,14 +30,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.hevincj.cashflow.domain.models.RecurringExpense
+import com.hevincj.cashflow.domain.models.Transaction
 import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.domain.models.TransactionType
+import com.hevincj.cashflow.domain.models.RecurringFrequency
 import com.hevincj.cashflow.ui.screen.viewmodel.SubscriptionManagerViewModel
 import com.hevincj.cashflow.ui.theme.*
 import com.hevincj.cashflow.utils.DateTimeUtils
-import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,19 +47,8 @@ fun SubscriptionManagerScreen(
     navController: NavController,
     viewModel: SubscriptionManagerViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.state.collectAsState()
+    val uiState by viewModel.state.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "rotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -84,30 +72,7 @@ fun SubscriptionManagerScreen(
                         )
                     }
                 },
-                actions = {
-                    if (uiState.isSyncing) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Syncing",
-                            tint = Color(0xFF635BFF),
-                            modifier = Modifier
-                                .padding(end = 12.dp)
-                                .size(24.dp)
-                                .rotate(rotation)
-                        )
-                    } else {
-                        IconButton(onClick = { viewModel.sync() }) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Sync Now",
-                                tint = TextPrimary
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = BackgroundGray
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundGray)
             )
         },
         floatingActionButton = {
@@ -161,7 +126,7 @@ fun SubscriptionManagerScreen(
                             modifier = Modifier
                                 .size(96.dp)
                                 .clip(RoundedCornerShape(28.dp))
-                                .background(Color(0xFFFFF7E6)),
+                                .background(if (LocalDarkTheme.current) Color(0xFF33250F) else Color(0xFFFFF7E6)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -194,7 +159,7 @@ fun SubscriptionManagerScreen(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(uiState.subscriptions, key = { it.id }) { subscription ->
+                    items(uiState.subscriptions, key = { it.localId }) { subscription ->
                         SubscriptionCard(
                             subscription = subscription,
                             onDelete = { viewModel.deleteSubscription(subscription) }
@@ -255,13 +220,13 @@ fun SubscriptionCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(subscription.category.iconBgColor),
+                    .background(subscription.transaction.category.iconBgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = subscription.category.icon,
-                    contentDescription = subscription.category.displayName,
-                    tint = Color.White,
+                    imageVector = subscription.transaction.category.icon,
+                    contentDescription = subscription.transaction.category.displayName,
+                    tint = Color(0xFF212121),
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -270,13 +235,13 @@ fun SubscriptionCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = subscription.title,
+                    text = subscription.transaction.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                val dateStr = DateTimeUtils.formatTimestamp(subscription.nextDueDate)
+                val dateStr = DateTimeUtils.formatDueDate(subscription.nextDueDate)
                 Text(
                     text = "Next payment: $dateStr",
                     fontSize = 12.sp,
@@ -288,13 +253,12 @@ fun SubscriptionCard(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.Center
             ) {
-                val formattedAmount = String.format("$%.2f", subscription.amount)
-                val freqLabel = when (subscription.frequency.uppercase()) {
-                    "DAILY" -> "day"
-                    "WEEKLY" -> "wk"
-                    "MONTHLY" -> "mo"
-                    "YEARLY" -> "yr"
-                    else -> "mo"
+                val formattedAmount = String.format("$%.2f", subscription.transaction.amount)
+                val freqLabel = when (subscription.frequency) {
+                    RecurringFrequency.DAILY -> "day"
+                    RecurringFrequency.WEEKLY -> "wk"
+                    RecurringFrequency.MONTHLY -> "mo"
+                    RecurringFrequency.YEARLY -> "yr"
                 }
                 Text(
                     text = "$formattedAmount / $freqLabel",
@@ -327,14 +291,15 @@ fun AddSubscriptionDialog(
     var title by remember { mutableStateOf("") }
     var amountString by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(TransactionCategory.ENTERTAINMENT) }
-    var selectedFrequency by remember { mutableStateOf("MONTHLY") }
+    var selectedFrequency by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
 
-    val categories = TransactionCategory.values()
-        .filter { it.supportedTypes.contains(TransactionType.EXPENSE) }
-    val frequencies = listOf("DAILY", "WEEKLY", "MONTHLY", "YEARLY")
+    val categories = remember {
+        TransactionCategory.values().filter { it.supportedTypes.contains(TransactionType.EXPENSE) }
+    }
+    val frequencies = remember { RecurringFrequency.values() }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = onDismiss, // FIX: Hook dismiss listener to handle back gestures correctly
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -343,6 +308,11 @@ fun AddSubscriptionDialog(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .padding(vertical = 24.dp)
+                .border(
+                    width = 1.dp,
+                    color = if (LocalDarkTheme.current) Color(0xFF2C2C2E) else Color.Transparent,
+                    shape = RoundedCornerShape(24.dp)
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -366,7 +336,11 @@ fun AddSubscriptionDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFF635BFF),
-                        unfocusedBorderColor = Color(0xFFE5E5EA)
+                        unfocusedBorderColor = if (LocalDarkTheme.current) Color(0xFF3A3A3C) else Color(0xFFE5E5EA),
+                        focusedLabelColor = Color(0xFF635BFF),
+                        unfocusedLabelColor = TextSecondary,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -382,14 +356,17 @@ fun AddSubscriptionDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFF635BFF),
-                        unfocusedBorderColor = Color(0xFFE5E5EA)
+                        unfocusedBorderColor = if (LocalDarkTheme.current) Color(0xFF3A3A3C) else Color(0xFFE5E5EA),
+                        focusedLabelColor = Color(0xFF635BFF),
+                        unfocusedLabelColor = TextSecondary,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Category Selection Label
                 Text(
                     text = "Category",
                     fontSize = 14.sp,
@@ -399,16 +376,16 @@ fun AddSubscriptionDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Category Row list
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(categories) { cat ->
                         val isSelected = cat == selectedCategory
-                        val chipBg = if (isSelected) cat.iconBgColor else Color(0xFFF2F2F7)
-                        val chipText = if (isSelected) Color.White else TextPrimary
-                        val chipBorder = if (isSelected) Color.Transparent else Color(0xFFE5E5EA)
+                        val isDark = LocalDarkTheme.current
+                        val chipBg = if (isSelected) cat.iconBgColor else (if (isDark) Color(0xFF2C2C2E) else Color(0xFFF2F2F7))
+                        val chipText = if (isSelected) Color(0xFF212121) else TextPrimary
+                        val chipBorder = if (isSelected) Color.Transparent else (if (isDark) Color(0xFF3A3A3C) else Color(0xFFE5E5EA))
 
                         Box(
                             modifier = Modifier
@@ -423,7 +400,7 @@ fun AddSubscriptionDialog(
                                 Icon(
                                     imageVector = cat.icon,
                                     contentDescription = cat.displayName,
-                                    tint = if (isSelected) Color.White else Color(0xFF635BFF),
+                                    tint = if (isSelected) Color(0xFF212121) else Color(0xFF635BFF),
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -440,7 +417,6 @@ fun AddSubscriptionDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Frequency Selection Label
                 Text(
                     text = "Frequency",
                     fontSize = 14.sp,
@@ -456,7 +432,8 @@ fun AddSubscriptionDialog(
                 ) {
                     frequencies.forEach { freq ->
                         val isSelected = freq == selectedFrequency
-                        val chipBg = if (isSelected) Color(0xFF635BFF) else Color(0xFFF2F2F7)
+                        val isDark = LocalDarkTheme.current
+                        val chipBg = if (isSelected) Color(0xFF635BFF) else (if (isDark) Color(0xFF2C2C2E) else Color(0xFFF2F2F7))
                         val chipText = if (isSelected) Color.White else TextPrimary
 
                         Box(
@@ -469,7 +446,7 @@ fun AddSubscriptionDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = freq.substring(0, 1) + freq.substring(1).lowercase(),
+                                text = freq.name.substring(0, 1) + freq.name.substring(1).lowercase(),
                                 color = chipText,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -480,7 +457,6 @@ fun AddSubscriptionDialog(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -489,27 +465,38 @@ fun AddSubscriptionDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Cancel", color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                        Text("Cancel", color = TextSecondary, fontWeight = FontWeight.SemiBold)
                     }
 
                     val amount = amountString.toDoubleOrNull() ?: 0.0
                     val isFormValid = title.isNotBlank() && amount > 0.0
+                    val isDark = LocalDarkTheme.current
 
                     Button(
                         onClick = {
                             val now = System.currentTimeMillis()
-                            val nextDue = calculateInitialNextDueDate(now, selectedFrequency)
+                            // FIX: Initial nextDueDate is matching baseline timestamp exactly
+                            // to let the background logger instantly populate the first active transaction entry
                             val newSub = RecurringExpense(
                                 id = "",
-                                title = title.trim(),
-                                amount = amount,
-                                category = selectedCategory,
-                                type = TransactionType.EXPENSE,
+                                localId = 0,
                                 frequency = selectedFrequency,
                                 startDate = now,
                                 lastProcessedDate = null,
-                                nextDueDate = nextDue,
-                                isSynced = false
+                                nextDueDate = now,
+                                isSynced = false,
+                                transaction = Transaction(
+                                    id = "",
+                                    title = title.trim(),
+                                    timestamp = now,
+                                    amount = amount,
+                                    icon = selectedCategory.icon,
+                                    iconBgColor = selectedCategory.iconBgColor,
+                                    type = TransactionType.EXPENSE,
+                                    category = selectedCategory,
+                                    description = null,
+                                    isSynced = false
+                                )
                             )
                             onConfirm(newSub)
                         },
@@ -517,14 +504,19 @@ fun AddSubscriptionDialog(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
-                            disabledContainerColor = Color(0xFFE5E5EA)
+                            disabledContainerColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)
                         ),
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
                     ) {
-                        val brush = if (isFormValid) PrimaryGradient else Brush.linearGradient(listOf(Color(0xFFE5E5EA), Color(0xFFE5E5EA)))
+                        val brush = if (isFormValid) PrimaryGradient else Brush.linearGradient(
+                            listOf(
+                                if (isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA),
+                                if (isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)
+                            )
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -533,7 +525,7 @@ fun AddSubscriptionDialog(
                         ) {
                             Text(
                                 "Add",
-                                color = if (isFormValid) Color.White else Color.Gray,
+                                color = if (isFormValid) Color.White else (if (isDark) Color.DarkGray else Color.Gray),
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -542,20 +534,4 @@ fun AddSubscriptionDialog(
             }
         }
     }
-}
-
-private fun calculateInitialNextDueDate(startDate: Long, frequency: String): Long {
-    val calendar = Calendar.getInstance().apply {
-        timeInMillis = startDate
-    }
-    // Set to start of the next cycle. For example, monthly Netlix starts on start date,
-    // but the actual first automatic background charge will happen on nextDueDate (e.g. 1 month from now)
-    when (frequency.uppercase()) {
-        "DAILY" -> calendar.add(Calendar.DAY_OF_YEAR, 1)
-        "WEEKLY" -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
-        "MONTHLY" -> calendar.add(Calendar.MONTH, 1)
-        "YEARLY" -> calendar.add(Calendar.YEAR, 1)
-        else -> calendar.add(Calendar.MONTH, 1)
-    }
-    return calendar.timeInMillis
 }

@@ -7,11 +7,14 @@ import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.GetTransactionsUseCase
+import com.hevincj.cashflow.domain.usecase.GetTransactionByIdUseCase
+import com.hevincj.cashflow.domain.usecase.UpdateTransactionUseCase
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ShoppingBag
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -24,6 +27,7 @@ import org.junit.Test
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -37,7 +41,13 @@ class AddTransactionViewModelTest {
     lateinit var addTransactionUseCase: AddTransactionUseCase
 
     @Mock
+    lateinit var updateTransactionUseCase: UpdateTransactionUseCase
+
+    @Mock
     lateinit var getTransactionsUseCase: GetTransactionsUseCase
+
+    @Mock
+    lateinit var getTransactionByIdUseCase: GetTransactionByIdUseCase
 
     private lateinit var viewModel: AddTransactionViewModel
 
@@ -71,16 +81,28 @@ class AddTransactionViewModelTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        whenever(getTransactionsUseCase.invoke()).thenReturn(flowOf(sampleTransactions))
+        runBlocking {
+            whenever(getTransactionsUseCase.invoke()).thenReturn(flowOf(sampleTransactions))
+            whenever(getTransactionByIdUseCase.invoke(any())).thenAnswer { invocation ->
+                val id = invocation.getArgument<String>(0)
+                sampleTransactions.find { it.id == id }
+            }
+        }
+    }
+
+    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): AddTransactionViewModel {
+        return AddTransactionViewModel(
+            addTransactionUseCase,
+            updateTransactionUseCase,
+            getTransactionsUseCase,
+            getTransactionByIdUseCase,
+            savedStateHandle
+        )
     }
 
     @Test
     fun testInitializationWithoutIdStartsInCreationMode() {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         val state = viewModel.state.value
         assertFalse(state.isEditMode)
@@ -92,11 +114,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testInitializationWithIdLoadsTransactionForEdit() = runTest {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle(mapOf("transactionId" to "123"))
-        )
+        viewModel = createViewModel(SavedStateHandle(mapOf("transactionId" to "123")))
 
         advanceUntilIdle()
 
@@ -111,11 +129,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testInitializationWithIdLoadsTransactionForEditSanitizesAndCaps() = runTest {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle(mapOf("transactionId" to "456"))
-        )
+        viewModel = createViewModel(SavedStateHandle(mapOf("transactionId" to "456")))
 
         advanceUntilIdle()
 
@@ -127,11 +141,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testOnAmountChangeAcceptsOnlyNumbers() {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         // Valid amount changes
         viewModel.onAmountChange("12.50")
@@ -144,11 +154,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testOnAmountChangeRejectsMoreThanTwoDecimalPlaces() {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         viewModel.onAmountChange("12.50")
         assertEquals("12.50", viewModel.state.value.amount)
@@ -160,11 +166,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testOnAmountChangeRejectsExtremelyLargeNumber() {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         viewModel.onAmountChange("999999.00")
         assertEquals("999999.00", viewModel.state.value.amount)
@@ -185,11 +187,7 @@ class AddTransactionViewModelTest {
             )
         )
 
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            savedStateHandle
-        )
+        viewModel = createViewModel(savedStateHandle)
 
         assertEquals("123.45", viewModel.state.value.amount)
     }
@@ -205,11 +203,7 @@ class AddTransactionViewModelTest {
             )
         )
 
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            savedStateHandle
-        )
+        viewModel = createViewModel(savedStateHandle)
 
         assertEquals("1234.56", viewModel.state.value.amount)
     }
@@ -225,11 +219,7 @@ class AddTransactionViewModelTest {
             )
         )
 
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            savedStateHandle
-        )
+        viewModel = createViewModel(savedStateHandle)
 
         assertEquals("123.45", viewModel.state.value.amount)
     }
@@ -245,22 +235,14 @@ class AddTransactionViewModelTest {
             )
         )
 
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            savedStateHandle
-        )
+        viewModel = createViewModel(savedStateHandle)
 
         assertEquals("999999.00", viewModel.state.value.amount)
     }
 
     @Test
     fun testSaveTransactionWithValidDataCallsUseCase() = runTest {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         viewModel.onAmountChange("150")
         viewModel.onTypeChange(TransactionType.INCOME)
@@ -276,11 +258,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testSaveTransactionWithInvalidDataDisplaysErrorMessage() = runTest {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         // No amount set
         viewModel.saveTransaction()
@@ -300,11 +278,7 @@ class AddTransactionViewModelTest {
             )
         )
 
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            savedStateHandle
-        )
+        viewModel = createViewModel(savedStateHandle)
 
         val state = viewModel.state.value
         assertFalse(state.isEditMode)
@@ -325,11 +299,7 @@ class AddTransactionViewModelTest {
             )
         )
 
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            savedStateHandle
-        )
+        viewModel = createViewModel(savedStateHandle)
 
         // User changes description (clearing prefilled barcode details)
         viewModel.onDescriptionChange("Cerave Cream")
@@ -347,11 +317,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testOnTypeChangeRemapsCategoryIfUnsupported() {
-        viewModel = AddTransactionViewModel(
-            addTransactionUseCase,
-            getTransactionsUseCase,
-            SavedStateHandle()
-        )
+        viewModel = createViewModel()
 
         // Default type is EXPENSE, category is OTHERS (supported by EXPENSE).
         // Set category to FOOD (expense-only)
@@ -371,5 +337,19 @@ class AddTransactionViewModelTest {
         viewModel.onTypeChange(TransactionType.EXPENSE)
         assertEquals(TransactionType.EXPENSE, viewModel.state.value.type)
         assertEquals(TransactionCategory.GIFTS, viewModel.state.value.category)
+    }
+
+    @Test
+    fun testSaveEditedTransactionCallsUpdateUseCase() = runTest {
+        viewModel = createViewModel(SavedStateHandle(mapOf("transactionId" to "123")))
+        advanceUntilIdle()
+
+        viewModel.onAmountChange("950")
+        viewModel.saveTransaction()
+        advanceUntilIdle()
+
+        verify(updateTransactionUseCase).invoke(any())
+        verify(addTransactionUseCase, never()).invoke(any())
+        assertTrue(viewModel.state.value.isSuccess)
     }
 }

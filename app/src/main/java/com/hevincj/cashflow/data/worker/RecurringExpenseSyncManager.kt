@@ -1,6 +1,7 @@
 package com.hevincj.cashflow.data.worker
 
 import com.hevincj.cashflow.data.local.dao.RecurringExpenseDao
+import com.hevincj.cashflow.data.local.dao.TransactionDao
 import com.hevincj.cashflow.data.local.PendingDeleteManager
 import com.hevincj.cashflow.data.remote.api.RecurringExpenseApi
 import com.hevincj.cashflow.data.remote.models.RecurringExpenseRequestDto
@@ -14,6 +15,7 @@ import kotlinx.coroutines.sync.withLock
 @Singleton
 class RecurringExpenseSyncManager @Inject constructor(
     private val dao: RecurringExpenseDao,
+    private val transactionDao: TransactionDao,
     private val api: RecurringExpenseApi,
     private val pendingDeleteManager: PendingDeleteManager
 ) {
@@ -25,15 +27,15 @@ class RecurringExpenseSyncManager @Inject constructor(
             if (action == "upsert" && localId != -1) {
                 val lock = recurringLocks.computeIfAbsent(localId) { Mutex() }
                 return lock.withLock {
-                    val entity = dao.getAllRecurringExpenses().first().find { it.id == localId } ?: return true
+                    val entity = dao.getRecurringExpenseById(localId) ?: return true
                     if (entity.isSynced) return true
 
                     val requestDto = RecurringExpenseRequestDto(
                         title = entity.title,
                         amount = entity.amount,
-                        category = entity.category,
-                        type = entity.type,
-                        frequency = entity.frequency,
+                        category = entity.category.name,
+                        type = entity.type.name,
+                        frequency = entity.frequency.name,
                         startDate = entity.startDate,
                         lastProcessedDate = entity.lastProcessedDate,
                         nextDueDate = entity.nextDueDate,
@@ -56,6 +58,8 @@ class RecurringExpenseSyncManager @Inject constructor(
                                         serverId = remoteDto.id
                                     )
                                 )
+                                // Cascade the server ID to all pre-existing local transactions
+                                transactionDao.updateRecurringExpenseId(localId.toString(), remoteDto.id)
                             }
                             return true
                         }

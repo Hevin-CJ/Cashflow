@@ -1,5 +1,8 @@
 package com.hevincj.cashflow.domain.models
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Budget(
     val id: Int = 0,
     val serverId: String? = null,

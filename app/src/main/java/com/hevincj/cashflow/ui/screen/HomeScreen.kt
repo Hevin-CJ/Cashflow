@@ -19,6 +19,9 @@
     import androidx.compose.foundation.lazy.items
     import androidx.compose.foundation.lazy.itemsIndexed
     import androidx.compose.foundation.shape.CircleShape
+    import kotlinx.collections.immutable.persistentListOf
+    import kotlinx.collections.immutable.toImmutableList
+    import androidx.compose.animation.Crossfade
     import androidx.compose.foundation.shape.RoundedCornerShape
     import androidx.compose.material.icons.Icons
     import androidx.compose.material.icons.rounded.AccountBalance
@@ -73,7 +76,6 @@
     import com.hevincj.cashflow.ui.theme.BackgroundGray
     import com.hevincj.cashflow.ui.theme.LocalDarkTheme
     import kotlin.math.abs
-    import com.hevincj.cashflow.utils.DateTimeUtils
 
 
     import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -103,6 +105,8 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.core.animateFloat
@@ -120,10 +124,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import android.widget.Toast
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.rememberCoroutineScope
+    import com.hevincj.cashflow.domain.models.TransactionCategory
 
 
     @Composable
@@ -200,9 +206,31 @@ import androidx.compose.runtime.rememberCoroutineScope
         rootNavController: NavController,
         listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState()
     ) {
+        val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
+        val shimmerTranslateAnim = shimmerTransition.animateFloat(
+            initialValue = -300f,
+            targetValue = 900f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmerTranslate"
+        )
+        val shimmerTranslateProvider = remember(shimmerTranslateAnim) { { shimmerTranslateAnim.value } }
+
         var showBatchItemsTransaction by remember { mutableStateOf<Transaction?>(null) }
         var isSyncErrorDismissed by remember { mutableStateOf(false) }
         var isBudgetWarningDismissed by remember { mutableStateOf(false) }
+
+        // Read theme colors once at this scope so they are not re-read inside every
+        // TransactionItem recomposition. This makes TransactionItem a fully stable,
+        // skippable composable (all its inputs become @Immutable / primitives).
+        val itemTextPrimary = TextPrimary
+        val itemTextSecondary = TextSecondary
+        val itemCardBackground = CardBackground
+        val itemBackgroundGray = BackgroundGray
+        val itemPositiveGreen = PositiveGreen
+        val itemNegativeRed = NegativeRed
 
         LaunchedEffect(uiState.error) {
             isSyncErrorDismissed = false
@@ -298,7 +326,8 @@ import androidx.compose.runtime.rememberCoroutineScope
                     expense = uiState.totalExpense,
                     selectedRange = uiState.balanceRange,
                     isLoading = uiState.isLoading,
-                    onRangeSelected = onRangeSelected
+                    onRangeSelected = onRangeSelected,
+                    shimmerTranslateProvider = shimmerTranslateProvider
                 )
             }
 
@@ -424,81 +453,95 @@ import androidx.compose.runtime.rememberCoroutineScope
             Box(modifier = Modifier.padding(horizontal = 24.dp)) {
                 TransactionHeader(
                     isLoading = uiState.isLoading,
-                    onSeeAllClick = onNavigateToAllTransactions
+                    onSeeAllClick = onNavigateToAllTransactions,
+                    shimmerTranslateProvider = shimmerTranslateProvider
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val transactions = uiState.transactions.take(25)
+            val transactions = remember(uiState.transactions) { uiState.transactions.take(25).toImmutableList() }
 
-            if (!uiState.isLoading && transactions.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+            Crossfade(
+                targetState = uiState.isLoading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                label = "homeContentTransition"
+            ) { isLoading ->
+                if (isLoading) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(
+                            start = 24.dp,
+                            end = 24.dp,
+                            bottom = 24.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        userScrollEnabled = false
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(Color(0xFFF3E8FF)),
-                            contentAlignment = Alignment.Center
+                        items(15, key = { "shimmer_$it" }, contentType = { "shimmer" }) {
+                            ShimmerTransactionItem(shimmerTranslateProvider = shimmerTranslateProvider)
+                        }
+                    }
+                } else if (transactions.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Payment,
-                                contentDescription = "No Transactions",
-                                tint = Color(0xFF8121FD),
-                                modifier = Modifier.size(36.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Color(0xFFF3E8FF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Payment,
+                                    contentDescription = "No Transactions",
+                                    tint = Color(0xFF8121FD),
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No transactions found",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Your transaction history will appear here once you make your first payment.",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 24.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No transactions found",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Your transaction history will appear here once you make your first payment.",
-                            fontSize = 12.sp,
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
                     }
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(
-                        start = 24.dp,
-                        end = 24.dp,
-                        bottom = 24.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    userScrollEnabled = !uiState.isLoading
-                ) {
-                    if (uiState.isLoading) {
-                        items(25, key = { "shimmer_$it" }) {
-                            // Each ShimmerTransactionItem owns its own infinite animation scope;
-                            // only shimmer items recompose at 60fps, not the parent tree.
-                            ShimmerTransactionItem()
-                        }
-                    } else {
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(
+                            start = 24.dp,
+                            end = 24.dp,
+                            bottom = 24.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                         items(
                             items = transactions,
-                            key = { it.id }
+                            key = { it.id },
+                            contentType = { "transaction" }
                         ) { transaction ->
                             val onBatchIconClickLambda = remember(transaction.id) {
                                 {
@@ -509,7 +552,13 @@ import androidx.compose.runtime.rememberCoroutineScope
                                 transaction = transaction,
                                 onDeleteTransaction = onDeleteTransaction,
                                 onNavigateToAddTransaction = onNavigateToAddTransaction,
-                                onBatchIconClick = onBatchIconClickLambda
+                                onBatchIconClick = onBatchIconClickLambda,
+                                textPrimary = itemTextPrimary,
+                                textSecondary = itemTextSecondary,
+                                cardBackground = itemCardBackground,
+                                itemBackgroundGray = itemBackgroundGray,
+                                positiveGreen = itemPositiveGreen,
+                                negativeRed = itemNegativeRed
                             )
                         }
                     }
@@ -580,18 +629,16 @@ import androidx.compose.runtime.rememberCoroutineScope
         expense: Double,
         selectedRange: BalanceRange,
         isLoading: Boolean,
-        onRangeSelected: (BalanceRange) -> Unit
+        onRangeSelected: (BalanceRange) -> Unit,
+        shimmerTranslateProvider: () -> Float
     ) {
-        // rememberShimmerBrush must be called unconditionally (Compose rules).
-        // The animation recomposition stays inside BalanceCard, not propagating up.
-        val shimmerBrush = rememberShimmerBrush(showShimmer = isLoading)
         if (isLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(190.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .shimmerEffect(shimmerBrush)
+                    .shimmerEffect(shimmerTranslateProvider)
             )
         } else {
             var dropdownExpanded by remember { mutableStateOf(false) }
@@ -772,11 +819,9 @@ import androidx.compose.runtime.rememberCoroutineScope
     @Composable
     private fun TransactionHeader(
         isLoading: Boolean,
-        onSeeAllClick: () -> Unit
+        onSeeAllClick: () -> Unit,
+        shimmerTranslateProvider: () -> Float
     ) {
-        // rememberShimmerBrush must be called unconditionally (Compose rules).
-        // The animation only invalidates this composable's subtree — not the parent.
-        val shimmerBrush = rememberShimmerBrush(showShimmer = isLoading)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -787,13 +832,13 @@ import androidx.compose.runtime.rememberCoroutineScope
                     modifier = Modifier
                         .size(120.dp, 24.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .shimmerEffect(shimmerBrush)
+                        .shimmerEffect(shimmerTranslateProvider)
                 )
                 Box(
                     modifier = Modifier
                         .size(60.dp, 16.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .shimmerEffect(shimmerBrush)
+                        .shimmerEffect(shimmerTranslateProvider)
                 )
             } else {
                 Text(
@@ -819,7 +864,12 @@ import androidx.compose.runtime.rememberCoroutineScope
     @Composable
     fun TransactionItem(
         transaction: Transaction,
-        onBatchIconClick: (() -> Unit)? = null
+        onBatchIconClick: (() -> Unit)? = null,
+        textPrimary: Color = TextPrimary,
+        textSecondary: Color = TextSecondary,
+        cardBackground: Color = CardBackground,
+        positiveGreen: Color = PositiveGreen,
+        negativeRed: Color = NegativeRed
     ) {
 
         Row(
@@ -837,13 +887,13 @@ import androidx.compose.runtime.rememberCoroutineScope
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(CardBackground),
+                        .background(cardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = transaction.icon,
+                        imageVector = transaction.category.icon,
                         contentDescription = transaction.title,
-                        tint = TextPrimary,
+                        tint = textPrimary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -856,7 +906,7 @@ import androidx.compose.runtime.rememberCoroutineScope
                             text = transaction.title,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary,
+                            color = textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
@@ -886,14 +936,14 @@ import androidx.compose.runtime.rememberCoroutineScope
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = transaction.formattedDate.ifEmpty { DateTimeUtils.formatTimestamp(transaction.timestamp) },
+                        text = transaction.formattedDate,
                         fontSize = 13.sp,
-                        color = TextSecondary
+                        color = textSecondary
                     )
                 }
             }
 
-            val amountColor = if (transaction.amount > 0) PositiveGreen else NegativeRed
+            val amountColor = if (transaction.amount > 0) positiveGreen else negativeRed
             val amountPrefix = if (transaction.amount > 0) "+$" else "-$"
 
             Text(
@@ -905,39 +955,23 @@ import androidx.compose.runtime.rememberCoroutineScope
         }
     }
 
-    @Composable
-    fun rememberShimmerBrush(
-        showShimmer: Boolean,
-        colors: List<Color> = listOf(
-            Color(0xFFEAEAEA),
-            Color(0xFFF5F5F5),
-            Color(0xFFEAEAEA),
-        )
-    ): Brush {
-        val transition = rememberInfiniteTransition(label = "shimmer")
-        val translateAnimState = transition.animateFloat(
-            initialValue = -300f,
-            targetValue = 900f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "shimmerTranslate"
-        )
-        return if (showShimmer) {
-            Brush.linearGradient(
-                colors = colors,
-                start = Offset(translateAnimState.value, 0f),
-                end = Offset(translateAnimState.value + 300f, 300f)
-            )
-        } else {
-            remember { Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)) }
-        }
-    }
+    private val shimmerColors = listOf(
+        Color(0xFFEAEAEA),
+        Color(0xFFF5F5F5),
+        Color(0xFFEAEAEA)
+    )
 
-    fun Modifier.shimmerEffect(brush: Brush): Modifier = this.drawBehind {
-        drawRect(brush = brush)
-    }
+    fun Modifier.shimmerEffect(translateProvider: () -> Float): Modifier = this
+        .clearAndSetSemantics { }
+        .drawBehind {
+            val translateVal = translateProvider()
+            val brush = Brush.linearGradient(
+                colors = shimmerColors,
+                start = Offset(translateVal, 0f),
+                end = Offset(translateVal + 300f, 300f)
+            )
+            drawRect(brush = brush)
+        }
 
     @Suppress("DEPRECATION")
     @OptIn(ExperimentalMaterial3Api::class)
@@ -947,38 +981,64 @@ import androidx.compose.runtime.rememberCoroutineScope
         onDeleteTransaction: (Transaction) -> Unit,
         onNavigateToAddTransaction: (String?) -> Unit,
         onBatchIconClick: () -> Unit,
-        modifier: Modifier = Modifier
+        modifier: Modifier = Modifier,
+        textPrimary: Color = TextPrimary,
+        textSecondary: Color = TextSecondary,
+        cardBackground: Color = CardBackground,
+        itemBackgroundGray: Color = BackgroundGray,
+        positiveGreen: Color = PositiveGreen,
+        negativeRed: Color = NegativeRed
     ) {
         val density = LocalDensity.current
+        val coroutineScope = rememberCoroutineScope()
         val currentOnDeleteTransaction by rememberUpdatedState(onDeleteTransaction)
         val currentTransaction by rememberUpdatedState(transaction)
+        var showDeleteConfirmation by remember { mutableStateOf(false) }
 
-        // LazyColumn already gives each item a stable key via items(key = { it.id }).
-        // A second key() wrapper here would create a duplicate composition key that
-        // doesn't match LazyColumn's slot table, causing the dismiss state to be
-        // re-created on every recompose.
+        // Pre-compute the px threshold once per density change instead of inside the
+        // positionalThreshold lambda which is evaluated on every drag gesture frame.
+        val minThresholdPx = remember(density) { with(density) { 80.dp.toPx() } }
+
         val dismissState = rememberSwipeToDismissBoxState(
             confirmValueChange = { dismissValue ->
                 if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                    currentOnDeleteTransaction(currentTransaction)
-                    true
+                    showDeleteConfirmation = true
+                    false
                 } else {
                     false
                 }
             },
             positionalThreshold = { totalDistance ->
-                val minThreshold = with(density) { 56.dp.toPx() }
-                maxOf(totalDistance * 0.6f, minThreshold)
+                // minThresholdPx is pre-computed above — no toPx() call per gesture frame
+                maxOf(totalDistance * 0.75f, minThresholdPx)
             }
         )
 
-        LaunchedEffect(dismissState.currentValue) {
-            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                kotlinx.coroutines.delay(1000)
-                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                    dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDeleteConfirmation = false
+                    coroutineScope.launch { dismissState.reset() }
+                },
+                title = { Text("Delete Transaction?") },
+                text = { Text("\"${transaction.title}\" will be permanently deleted.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirmation = false
+                        currentOnDeleteTransaction(currentTransaction)
+                    }) { Text("Delete", color = Color(0xFFE53935)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirmation = false
+                        coroutineScope.launch { dismissState.reset() }
+                    }) { Text("Cancel") }
                 }
-            }
+            )
+        }
+
+        val onClick = remember(transaction.id, onNavigateToAddTransaction) {
+            { onNavigateToAddTransaction(transaction.id) }
         }
 
         SwipeToDismissBox(
@@ -987,24 +1047,22 @@ import androidx.compose.runtime.rememberCoroutineScope
             enableDismissFromStartToEnd = false,
             enableDismissFromEndToStart = true,
             backgroundContent = {
-                val color = when (dismissState.dismissDirection) {
-                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFE53935)
-                    else -> Color.Transparent
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(color)
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = "Delete",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFE53935))
+                            .padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             },
             content = {
@@ -1012,14 +1070,17 @@ import androidx.compose.runtime.rememberCoroutineScope
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(BackgroundGray)
-                        .clickable {
-                            onNavigateToAddTransaction(transaction.id)
-                        }
+                        .background(itemBackgroundGray)
+                        .clickable(onClick = onClick)
                 ) {
                     TransactionItem(
                         transaction = transaction,
-                        onBatchIconClick = onBatchIconClick
+                        onBatchIconClick = onBatchIconClick,
+                        textPrimary = textPrimary,
+                        textSecondary = textSecondary,
+                        cardBackground = cardBackground,
+                        positiveGreen = positiveGreen,
+                        negativeRed = negativeRed
                     )
                 }
             }
@@ -1027,11 +1088,7 @@ import androidx.compose.runtime.rememberCoroutineScope
     }
 
     @Composable
-    fun ShimmerTransactionItem() {
-        // The shimmer brush is created here, inside each ShimmerTransactionItem.
-        // This scopes the 60fps infinite animation to only the shimmer items;
-        // the parent LazyColumn and HomeScreenContent are NOT recomposed each frame.
-        val shimmerBrush = rememberShimmerBrush(showShimmer = true)
+    fun ShimmerTransactionItem(shimmerTranslateProvider: () -> Float) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1042,7 +1099,7 @@ import androidx.compose.runtime.rememberCoroutineScope
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .shimmerEffect(shimmerBrush)
+                        .shimmerEffect(shimmerTranslateProvider)
                 )
 
                 Spacer(modifier = Modifier.width(16.dp))
@@ -1052,14 +1109,14 @@ import androidx.compose.runtime.rememberCoroutineScope
                         modifier = Modifier
                             .size(120.dp, 16.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect(shimmerBrush)
+                            .shimmerEffect(shimmerTranslateProvider)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(
                         modifier = Modifier
                             .size(80.dp, 12.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect(shimmerBrush)
+                            .shimmerEffect(shimmerTranslateProvider)
                     )
                 }
             }
@@ -1068,7 +1125,7 @@ import androidx.compose.runtime.rememberCoroutineScope
                 modifier = Modifier
                     .size(60.dp, 18.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .shimmerEffect(shimmerBrush)
+                    .shimmerEffect(shimmerTranslateProvider)
             )
         }
     }
@@ -1080,7 +1137,7 @@ import androidx.compose.runtime.rememberCoroutineScope
             HomeScreenContent(
                 innerPadding = PaddingValues(),
                 uiState = HomeUiState(
-                    transactions = listOf(
+                    transactions = persistentListOf(
                         Transaction(
                             id = "1",
                             title = "Groceries",
@@ -1089,7 +1146,7 @@ import androidx.compose.runtime.rememberCoroutineScope
                             icon = Icons.Rounded.ShoppingBag,
                             iconBgColor = Color(0xFFF19E79),
                             type = TransactionType.EXPENSE,
-                            category = com.hevincj.cashflow.domain.models.TransactionCategory.GROCERIES,
+                            category = TransactionCategory.GROCERIES,
                             description = "Weekly shop",
                             isSynced = true
                         )

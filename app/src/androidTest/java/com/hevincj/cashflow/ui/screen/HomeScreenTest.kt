@@ -18,7 +18,6 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
-import com.hevincj.cashflow.domain.repository.ScanRepository
 
 class HomeScreenTest {
 
@@ -27,14 +26,8 @@ class HomeScreenTest {
 
     private val navController = mock<NavController>()
     private val viewModel = mock<HomeViewModel>()
-    private val scanRepository = mock<ScanRepository>()
     private val scanViewModel = mock<ScanViewModel>()
     private val stateFlow = MutableStateFlow(HomeUiState())
-
-    @org.junit.Before
-    fun setUp() {
-        whenever(scanViewModel.scanRepository).thenReturn(scanRepository)
-    }
 
     private val sampleTransactions = listOf(
         Transaction(

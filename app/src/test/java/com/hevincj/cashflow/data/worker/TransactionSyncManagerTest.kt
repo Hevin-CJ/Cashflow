@@ -1,10 +1,13 @@
 package com.hevincj.cashflow.data.worker
 
 import com.hevincj.cashflow.data.local.dao.TransactionDao
+import com.hevincj.cashflow.data.local.dao.RecurringExpenseDao
 import com.hevincj.cashflow.data.local.entity.TransactionEntity
 import com.hevincj.cashflow.data.local.PendingDeleteManager
 import com.hevincj.cashflow.data.remote.api.TransactionApi
 import com.hevincj.cashflow.data.remote.models.TransactionDto
+import com.hevincj.cashflow.domain.models.TransactionType
+import com.hevincj.cashflow.domain.models.TransactionCategory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -38,12 +41,24 @@ class TransactionSyncManagerTest {
     @Mock
     lateinit var pendingDeleteManager: PendingDeleteManager
 
+    @Mock
+    lateinit var recurringExpenseDao: RecurringExpenseDao
+
+    @Mock
+    lateinit var recurringExpenseSyncManager: RecurringExpenseSyncManager
+
     private lateinit var syncManager: TransactionSyncManager
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        syncManager = TransactionSyncManager(dao, api, pendingDeleteManager)
+        syncManager = TransactionSyncManager(
+            dao,
+            recurringExpenseDao,
+            { recurringExpenseSyncManager },
+            api,
+            pendingDeleteManager
+        )
     }
 
     private fun createEntityTransaction(
@@ -61,8 +76,8 @@ class TransactionSyncManagerTest {
             amount = amount,
             iconName = "GROCERIES",
             iconBgColor = 0xFFFF0000.toInt(),
-            type = type,
-            category = "GROCERIES",
+            type = TransactionType.valueOf(type),
+            category = TransactionCategory.GROCERIES,
             description = "desc",
             isSynced = isSynced
         )
@@ -71,6 +86,7 @@ class TransactionSyncManagerTest {
     @Test
     fun testSyncSpecificTransactionUpsertCreateSuccess() = runTest {
         val entity = createEntityTransaction(10, null, 100.0, "INCOME", false)
+        whenever(dao.getTransactionById(10)).thenReturn(entity)
         whenever(dao.getAllTransactions()).thenReturn(flowOf(listOf(entity)))
         whenever(dao.insertTransaction(any())).thenReturn(10L)
 
@@ -95,11 +111,13 @@ class TransactionSyncManagerTest {
         assertEquals(10, syncedInsert.id)
         assertEquals("server_123", syncedInsert.serverId)
         assertEquals(true, syncedInsert.isSynced)
+        assertTrue(syncedInsert.lastModifiedLocal > 0)
     }
 
     @Test
     fun testSyncSpecificTransactionUpsertUpdateSuccess() = runTest {
         val entity = createEntityTransaction(10, "server_123", 100.0, "INCOME", false)
+        whenever(dao.getTransactionById(10)).thenReturn(entity)
         whenever(dao.getAllTransactions()).thenReturn(flowOf(listOf(entity)))
         whenever(dao.insertTransaction(any())).thenReturn(10L)
         whenever(api.updateTransaction(eq("server_123"), any())).thenReturn(Response.success(Unit))
@@ -114,6 +132,7 @@ class TransactionSyncManagerTest {
         assertEquals(10, syncedInsert.id)
         assertEquals("server_123", syncedInsert.serverId)
         assertEquals(true, syncedInsert.isSynced)
+        assertTrue(syncedInsert.lastModifiedLocal > 0)
     }
 
     @Test
@@ -139,6 +158,7 @@ class TransactionSyncManagerTest {
     @Test
     fun testSyncSpecificTransactionUpsertFailedReturnsFalse() = runTest {
         val entity = createEntityTransaction(10, null, 100.0, "INCOME", false)
+        whenever(dao.getTransactionById(10)).thenReturn(entity)
         whenever(dao.getAllTransactions()).thenReturn(flowOf(listOf(entity)))
         whenever(api.createTransaction(any())).thenReturn(Response.error(500, "".toResponseBody()))
 

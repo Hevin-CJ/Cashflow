@@ -12,6 +12,7 @@ import org.junit.Test
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.whenever
+import kotlinx.collections.immutable.persistentListOf
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GetCardsUseCaseTest {
@@ -35,7 +36,7 @@ class GetCardsUseCaseTest {
                 balance = 500.0,
                 cardNumber = "1234 5678 9012 3456",
                 cardHolder = "John Doe",
-                gradientColors = listOf(0xFF111111L, 0xFF222222L)
+                gradientColors = persistentListOf(0xFF111111L, 0xFF222222L)
             )
         )
 

@@ -1,9 +1,8 @@
 package com.hevincj.cashflow.ui.screen
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.assertIsDisplayed
 import com.hevincj.cashflow.domain.models.TransactionStats
 import com.hevincj.cashflow.ui.screen.state.StatsUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.StatsViewModel
@@ -46,7 +45,7 @@ class StatisticsScreenTest {
 
         // Verify titles
         composeTestRule.onNodeWithText("Statistics").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Overview").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Overview").onFirst().assertIsDisplayed()
 
         // Verify Income/Expense totals displayed on the cards
         composeTestRule.onNodeWithText("$4500").assertIsDisplayed()

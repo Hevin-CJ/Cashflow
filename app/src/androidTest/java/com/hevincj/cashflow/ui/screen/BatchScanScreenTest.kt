@@ -4,9 +4,11 @@ import android.Manifest
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.rule.GrantPermissionRule
-import com.hevincj.cashflow.domain.repository.ScanRepository
-import com.hevincj.cashflow.domain.repository.TransactionRepository
+import com.hevincj.cashflow.ui.screen.state.ScanUiState
+import com.hevincj.cashflow.ui.screen.viewmodel.ScanEvent
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.mock
@@ -20,14 +22,14 @@ class BatchScanScreenTest {
     @get:Rule
     val grantPermissionRule: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.CAMERA)
 
-    private val scanRepository = mock<ScanRepository>()
-    private val transactionRepository = mock<TransactionRepository>()
     private val scanViewModel = mock<ScanViewModel>()
+    private val scanStateFlow = MutableStateFlow(ScanUiState())
+    private val eventFlow = MutableSharedFlow<ScanEvent>()
 
     @org.junit.Before
     fun setUp() {
-        whenever(scanViewModel.scanRepository).thenReturn(scanRepository)
-        whenever(scanViewModel.transactionRepository).thenReturn(transactionRepository)
+        whenever(scanViewModel.state).thenReturn(scanStateFlow)
+        whenever(scanViewModel.eventFlow).thenReturn(eventFlow)
     }
 
     @Test

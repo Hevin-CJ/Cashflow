@@ -19,5 +19,7 @@ data class Transaction(
     val isSynced: Boolean = false,
     val barcode: String? = null,
     val productName: String? = null,
-    val formattedDate: String = ""
+    val formattedDate: String = "",
+    val lastModifiedLocal: Long = 0L,
+    val recurringExpenseId: String? = null
 )

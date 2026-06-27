@@ -36,21 +36,14 @@ fun AllTransactionsScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.state.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<TransactionCategory?>(null) }
+    val filteredTransactions by viewModel.filteredTransactions.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
 
     LaunchedEffect(Unit) {
+        viewModel.setSearchQuery("")
+        viewModel.setSelectedCategory(null)
         viewModel.refreshSync(force = true, limit = 1000)
-    }
-
-    // Filter transactions dynamically based on search query and category
-    val filteredTransactions = remember(uiState.transactions, searchQuery, selectedCategory) {
-        uiState.transactions.filter { tx ->
-            val matchesSearch = tx.title.contains(searchQuery, ignoreCase = true) || 
-                                (tx.description?.contains(searchQuery, ignoreCase = true) ?: false)
-            val matchesCategory = selectedCategory == null || tx.category == selectedCategory
-            matchesSearch && matchesCategory
-        }
     }
 
     Scaffold(
@@ -96,12 +89,12 @@ fun AllTransactionsScreen(
             ) {
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = { viewModel.setSearchQuery(it) },
                     placeholder = { Text("Search transactions...", color = Color.Gray, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.Gray) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
+                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
                                 Icon(Icons.Rounded.Close, contentDescription = "Clear", tint = Color.Gray)
                             }
                         }
@@ -130,7 +123,7 @@ fun AllTransactionsScreen(
                 // "All" Chip
                 FilterChip(
                     selected = selectedCategory == null,
-                    onClick = { selectedCategory = null },
+                    onClick = { viewModel.setSelectedCategory(null) },
                     label = { Text("All") },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = IncomePurpleColor,
@@ -142,7 +135,7 @@ fun AllTransactionsScreen(
                 TransactionCategory.values().forEach { category ->
                     FilterChip(
                         selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
+                        onClick = { viewModel.setSelectedCategory(category) },
                         label = { Text(category.displayName) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = IncomePurpleColor,

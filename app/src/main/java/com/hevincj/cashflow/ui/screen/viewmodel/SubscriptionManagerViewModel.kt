@@ -7,6 +7,7 @@ import com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
 import com.hevincj.cashflow.domain.usecase.AddRecurringExpenseUseCase
 import com.hevincj.cashflow.domain.usecase.DeleteRecurringExpenseUseCase
 import com.hevincj.cashflow.domain.usecase.GetRecurringExpensesUseCase
+import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
 import com.hevincj.cashflow.data.worker.RecurringExpenseScheduler
 import com.hevincj.cashflow.ui.screen.state.SubscriptionManagerUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.collections.immutable.toImmutableList
 
 @HiltViewModel
 class SubscriptionManagerViewModel @Inject constructor(
@@ -24,7 +26,9 @@ class SubscriptionManagerViewModel @Inject constructor(
     private val addRecurringExpenseUseCase: AddRecurringExpenseUseCase,
     private val deleteRecurringExpenseUseCase: DeleteRecurringExpenseUseCase,
     private val repository: RecurringExpenseRepository,
-    private val scheduler: RecurringExpenseScheduler
+    private val scheduler: RecurringExpenseScheduler,
+    // FIX 1: Inject the local processing engine use case directly into the ViewModel
+    private val processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
 ) : ViewModel() {
 
     private val _isSyncing = MutableStateFlow(false)
@@ -36,7 +40,7 @@ class SubscriptionManagerViewModel @Inject constructor(
         _error
     ) { subscriptions, isSyncing, error ->
         SubscriptionManagerUiState(
-            subscriptions = subscriptions,
+            subscriptions = subscriptions.toImmutableList(),
             isLoading = false,
             isSyncing = isSyncing,
             error = error
@@ -56,7 +60,15 @@ class SubscriptionManagerViewModel @Inject constructor(
             _isSyncing.value = true
             _error.value = null
             val syncError = repository.syncRecurringExpenses()
-            _error.value = syncError
+            if (syncError == null) {
+                try {
+                    processRecurringExpensesUseCase()
+                } catch (e: Exception) {
+                    _error.value = e.message ?: "Failed to process recurring transactions"
+                }
+            } else {
+                _error.value = syncError
+            }
             _isSyncing.value = false
 
             scheduler.triggerOneTimeCheck()
@@ -65,13 +77,26 @@ class SubscriptionManagerViewModel @Inject constructor(
 
     fun addSubscription(recurringExpense: RecurringExpense) {
         viewModelScope.launch {
+            // 1. Insert subscription metadata profile parameters to database
             addRecurringExpenseUseCase(recurringExpense)
+            try {
+                processRecurringExpensesUseCase()
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to compute initial recurrence cycle"
+            }
         }
     }
 
     fun deleteSubscription(recurringExpense: RecurringExpense) {
         viewModelScope.launch {
             deleteRecurringExpenseUseCase(recurringExpense)
+
+            // FIX 3: Re-verify state entries instantly on deletion cleanup passes
+            try {
+                processRecurringExpensesUseCase()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }
