@@ -22,3 +22,4 @@ local.properties
 !.tmp/.gitkeep
 
 .md/
+.py/
