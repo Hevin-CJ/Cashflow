@@ -7,6 +7,7 @@ import com.hevincj.cashflow.data.local.ThemeMode
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import com.hevincj.cashflow.domain.models.Transaction
 import com.hevincj.cashflow.ui.screen.state.ProfileUiState
+import com.hevincj.cashflow.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,8 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val themeManager: ThemeManager,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -31,6 +33,58 @@ class ProfileViewModel @Inject constructor(
                 _state.value = _state.value.copy(themeMode = mode)
             }
         }
+        fetchUserProfile()
+    }
+
+    fun fetchUserProfile() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            userRepository.getUserProfile()
+                .onSuccess { profile ->
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        username = profile.username,
+                        firstName = profile.firstName ?: "",
+                        lastName = profile.lastName ?: "",
+                        phoneNumber = profile.phoneNumber ?: "",
+                        profileImage = profile.profileImage?.takeIf { it.isNotEmpty() }
+                    )
+                }
+                .onFailure { exception ->
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        error = exception.message ?: "Failed to fetch user profile"
+                    )
+                }
+        }
+    }
+
+    fun updateProfile(firstName: String, lastName: String, phoneNumber: String, profileImage: String?) {
+        val cleanProfileImage = profileImage?.takeIf { it.isNotEmpty() }
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null, isUpdateSuccess = false)
+            userRepository.updateProfile(firstName, lastName, phoneNumber, cleanProfileImage)
+                .onSuccess { profile ->
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        isUpdateSuccess = true,
+                        firstName = profile.firstName ?: "",
+                        lastName = profile.lastName ?: "",
+                        phoneNumber = profile.phoneNumber ?: "",
+                        profileImage = profile.profileImage?.takeIf { it.isNotEmpty() }
+                    )
+                }
+                .onFailure { exception ->
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        error = exception.message ?: "Failed to update profile"
+                    )
+                }
+        }
+    }
+
+    fun clearUpdateSuccess() {
+        _state.value = _state.value.copy(isUpdateSuccess = false)
     }
 
     fun setThemeMode(mode: ThemeMode) {

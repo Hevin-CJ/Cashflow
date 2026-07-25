@@ -15,9 +15,23 @@ class AuthRepositoryImpl @Inject constructor(
     private val tokenManager: TokenManager,
     private val database: CashFlowDatabase
 ) : AuthRepository {
-    override suspend fun login(username: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun initiateLogin(username: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val response = api.login(LoginRequestDto(username, password))
+            val response = api.loginInitiate(LoginRequestDto(username, password))
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val errorMsg = response.errorBody()?.string() ?: response.message()
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun verifyLogin(username: String, otp: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.loginVerify(com.hevincj.cashflow.data.remote.models.VerifyOtpRequestDto(username, otp))
             if (response.isSuccessful) {
                 response.body()?.token?.let {
                     tokenManager.saveToken(it)
@@ -32,11 +46,28 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun register(username: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
-         try {
-            val response = api.register(RegisterRequestDto(username, password))
+    override suspend fun initiateRegister(username: String, password: String, firstName: String?, lastName: String?, phoneNumber: String?): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.registerInitiate(RegisterRequestDto(username, password, firstName, lastName, phoneNumber))
             if (response.isSuccessful) {
                 Result.success(Unit)
+            } else {
+                val errorMsg = response.errorBody()?.string() ?: response.message()
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun verifyRegister(username: String, otp: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.registerVerify(com.hevincj.cashflow.data.remote.models.VerifyOtpRequestDto(username, otp))
+            if (response.isSuccessful) {
+                response.body()?.token?.let {
+                    tokenManager.saveToken(it)
+                    Result.success(Unit)
+                } ?: Result.failure(Exception("No token in response"))
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
                 Result.failure(Exception(errorMsg))

@@ -13,6 +13,7 @@ import com.hevincj.cashflow.domain.models.Transaction
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.GetTransactionsUseCase
+import com.hevincj.cashflow.domain.usecase.DeleteTransactionUseCase
 import com.hevincj.cashflow.ui.screen.state.HomeUiState
 import com.hevincj.cashflow.ui.screen.state.BalanceRange
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,18 +36,20 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
-
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import com.hevincj.cashflow.domain.repository.BudgetRepository
+import java.time.ZoneId
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getTransactionsUseCase: GetTransactionsUseCase,
     private val addTransactionUseCase: AddTransactionUseCase,
+    private val deleteTransactionUseCase: DeleteTransactionUseCase,
     private val repository: TransactionRepository,
     private val networkMonitor: com.hevincj.cashflow.utils.NetworkMonitor,
     private val budgetRepository: BudgetRepository,
-    private val processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
+    private val processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase,
+    private val authRepository: com.hevincj.cashflow.domain.repository.AuthRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -55,12 +60,14 @@ class HomeViewModel @Inject constructor(
     private var syncJob: kotlinx.coroutines.Job? = null
     private var isInitialSyncRunning = false
 
-    // Cached at class level — ZoneId.systemDefault() performs a timezone database lookup on
-    // first call and is expensive. The system timezone never changes while the app process runs.
-    private val zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault()
+    private val zoneId: ZoneId = ZoneId.systemDefault()
 
-    // For testing dispatcher override
-    internal var defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default
+    internal var defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher =
+        testDispatcherOverride ?: kotlinx.coroutines.Dispatchers.Default
+
+    companion object {
+        var testDispatcherOverride: kotlinx.coroutines.CoroutineDispatcher? = null
+    }
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -68,24 +75,25 @@ class HomeViewModel @Inject constructor(
     private val _selectedCategory = MutableStateFlow<TransactionCategory?>(null)
     val selectedCategory: StateFlow<TransactionCategory?> = _selectedCategory.asStateFlow()
 
+    @OptIn(FlowPreview::class)
     val filteredTransactions: StateFlow<kotlinx.collections.immutable.ImmutableList<Transaction>> = combine(
-        state,
+        state.map { it.transactions }.distinctUntilChanged().debounce(100L),
         _searchQuery,
         _selectedCategory
-    ) { uiState, query, category ->
-        withContext(defaultDispatcher) {
-            uiState.transactions.filter { tx ->
-                val matchesSearch = tx.title.contains(query, ignoreCase = true) ||
-                        (tx.description?.contains(query, ignoreCase = true) ?: false)
-                val matchesCategory = category == null || tx.category == category
-                matchesSearch && matchesCategory
-            }.toImmutableList()
-        }
-    }.stateIn(
-         scope = viewModelScope,
-         started = SharingStarted.WhileSubscribed(5000),
-         initialValue = persistentListOf()
-     )
+    ) { transactions, query, category ->
+        transactions.filter { tx ->
+            val matchesSearch = tx.title.contains(query, ignoreCase = true) ||
+                    (tx.description?.contains(query, ignoreCase = true) ?: false)
+            val matchesCategory = category == null || tx.category == category
+            matchesSearch && matchesCategory
+        }.toImmutableList()
+    }
+    .flowOn(defaultDispatcher)
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = persistentListOf()
+    )
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -100,51 +108,26 @@ class HomeViewModel @Inject constructor(
         observeNetworkChanges()
     }
 
-    /**
-     * Combines the transaction flow and the budget flow into a single collector so that
-     * [computeTotals] fires exactly once per pair of emissions instead of twice (previously
-     * it was called once from loadTransactions() and once from observeBudgets() on every
-     * DB update, causing two rapid full recompositions of HomeScreenContent on each sync).
-     *
-     * Uses a stable-key distinctUntilChanged comparator on the transaction list to suppress
-     * spurious re-emissions caused by ImageVector object-identity inequality: two lists whose
-     * items share the same id/timestamp/amount/isSynced are treated as equal even if their
-     * icon/iconBgColor object references differ after re-mapping from Room.
-     */
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     private fun observeCombinedState() {
         val currentMonth = java.time.YearMonth.now()
         viewModelScope.launch {
             combine(
-                getTransactionsUseCase()
-                    .distinctUntilChanged { old, new ->
-                        old.size == new.size &&
-                            old.zip(new).all { (o, n) ->
-                                o.id == n.id &&
-                                    o.title == n.title &&
-                                    o.timestamp == n.timestamp &&
-                                    o.amount == n.amount &&
-                                    o.type == n.type &&
-                                    o.category == n.category &&
-                                    o.description == n.description &&
-                                    o.isSynced == n.isSynced &&
-                                    o.barcode == n.barcode &&
-                                    o.productName == n.productName
-                            }
-                    }
-                    .debounce(20L),
+                getTransactionsUseCase().distinctUntilChanged(),
                 budgetRepository.getBudgetsForMonth(
                     currentMonth.monthValue,
                     currentMonth.year
                 ).distinctUntilChanged()
             ) { transactions, budgetList ->
                 Pair(transactions, budgetList)
-            }.collect { (transactions, budgetList) ->
-                android.util.Log.d("CashFlowDebug", "Loaded transactions count: ${transactions.size}")
-                allTransactions = transactions
-                budgets = budgetList
-                computeTotals()
             }
+                .debounce(20L)
+                .flowOn(defaultDispatcher)
+                .collect { (transactions, budgetList) ->
+                    allTransactions = transactions
+                    budgets = budgetList
+                    computeTotals()
+                }
         }
     }
 
@@ -153,7 +136,6 @@ class HomeViewModel @Inject constructor(
             networkMonitor.isConnected
                 .distinctUntilChanged()
                 .collect { isConnected ->
-                    android.util.Log.d("CashFlowDebug", "Network connectivity state changed: isConnected = $isConnected")
                     if (isConnected) {
                         val currentError = _state.value.error
                         if (currentError != null) {
@@ -187,7 +169,17 @@ class HomeViewModel @Inject constructor(
             val budgetSyncError = budgetRepository.syncBudgets()
             isInitialSyncRunning = false
             val finalError = syncError ?: budgetSyncError
-            _state.value = _state.value.copy(error = finalError, isLoading = false)
+            val isSessionExpired = finalError?.contains("code 401") == true
+            if (isSessionExpired) {
+                authRepository.logout()
+                _state.value = _state.value.copy(
+                    error = "Session expired. Please log in again.",
+                    isLoading = false,
+                    isSessionExpired = true
+                )
+            } else {
+                _state.value = _state.value.copy(error = finalError, isLoading = false)
+            }
         }
     }
 
@@ -200,16 +192,13 @@ class HomeViewModel @Inject constructor(
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            repository.deleteTransaction(transaction)
+            deleteTransactionUseCase(transaction)
         }
     }
-
-    // loadTransactions() has been merged into observeCombinedState() above.
 
     private suspend fun computeTotals() {
         withContext(defaultDispatcher) {
             val range = _state.value.balanceRange
-            // Room query already orders by timestamp DESC, so we don't need in-memory sorting
             val sortedTransactions = allTransactions
 
             val filteredForTotals = when (range) {
@@ -241,29 +230,30 @@ class HomeViewModel @Inject constructor(
             val expense = filteredForTotals.filter { it.type == TransactionType.EXPENSE }.sumOf { kotlin.math.abs(it.amount) }
             val balance = income - expense
 
-            // Compute budget spending
             val currentMonth = java.time.YearMonth.now()
             val currentYear = currentMonth.year
             val currentMonthValue = currentMonth.monthValue
+
+            val categorySpendingMap = sortedTransactions
+                .filter { it.type == TransactionType.EXPENSE && isTargetMonth(it.timestamp, currentYear, currentMonthValue, zoneId) }
+                .groupBy { it.category }
+                .mapValues { entry -> entry.value.sumOf { kotlin.math.abs(it.amount) } }
+
             val exceeded = budgets.map { budget ->
-                val spent = sortedTransactions.filter { tx ->
-                    tx.type == TransactionType.EXPENSE &&
-                    tx.category == budget.category &&
-                    isTargetMonth(tx.timestamp, currentYear, currentMonthValue, zoneId)
-                }.sumOf { kotlin.math.abs(it.amount) }
+                val spent = categorySpendingMap[budget.category] ?: 0.0
                 budget.copy(spent = spent)
             }.filter { it.isExceeded }
 
+            // Slice list cleanly to maximum display elements here on background thread
+            val displayTransactions = sortedTransactions.take(25).toImmutableList()
+
             withContext(Dispatchers.Main) {
                 _state.value = _state.value.copy(
-                    transactions = sortedTransactions.toImmutableList(),
+                    transactions = displayTransactions,
                     totalIncome = income,
                     totalExpense = expense,
                     totalBalance = balance,
                     exceededBudgets = exceeded.toImmutableList(),
-                    // Clear loading once data has arrived. The dual-emission that previously
-                    // caused a second rapid recomposition here is now eliminated by combine()
-                    // in observeCombinedState, so this fires only once per sync cycle.
                     isLoading = if (sortedTransactions.isNotEmpty()) false else _state.value.isLoading
                 )
             }

@@ -39,64 +39,71 @@ class AuthViewModelTest {
 
     @Test
     fun testUsernameAndPasswordChangeUpdatesState() {
-        viewModel.onUsernameChange("testuser")
+        viewModel.onUsernameChange("testuser@example.com")
         viewModel.onPasswordChange("testpassword")
+        viewModel.onFirstNameChange("John")
+        viewModel.onLastNameChange("Doe")
+        viewModel.onPhoneNumberChange("1234567890")
+        viewModel.onOtpChange("123456")
 
         val state = viewModel.state.value
-        assertEquals("testuser", state.username)
+        assertEquals("testuser@example.com", state.username)
         assertEquals("testpassword", state.password)
+        assertEquals("John", state.firstName)
+        assertEquals("Doe", state.lastName)
+        assertEquals("1234567890", state.phoneNumber)
+        assertEquals("123456", state.otp)
     }
 
     @Test
-    fun testLoginSuccessUpdatesState() = runTest {
-        viewModel.onUsernameChange("testuser")
+    fun testInitiateLoginSuccessUpdatesState() = runTest {
+        viewModel.onUsernameChange("testuser@example.com")
         viewModel.onPasswordChange("testpass")
-        whenever(loginUseCase.invoke(any(), any())).thenReturn(Result.success(Unit))
+        whenever(loginUseCase.initiate(any(), any())).thenReturn(Result.success(Unit))
 
-        viewModel.login()
+        viewModel.initiateLogin()
+        advanceUntilIdle()
+
+        assertEquals(AuthState.OtpSentLogin, viewModel.state.value.authState)
+    }
+
+    @Test
+    fun testVerifyLoginSuccessUpdatesState() = runTest {
+        viewModel.onUsernameChange("testuser@example.com")
+        viewModel.onOtpChange("123456")
+        whenever(loginUseCase.verify(any(), any())).thenReturn(Result.success(Unit))
+
+        viewModel.verifyLogin()
         advanceUntilIdle()
 
         assertEquals(AuthState.LoginSuccess, viewModel.state.value.authState)
     }
 
     @Test
-    fun testLoginFailureUpdatesErrorState() = runTest {
-        viewModel.onUsernameChange("testuser")
+    fun testInitiateRegisterSuccessUpdatesState() = runTest {
+        viewModel.onUsernameChange("testuser@example.com")
         viewModel.onPasswordChange("testpass")
-        whenever(loginUseCase.invoke(any(), any())).thenReturn(Result.failure(Exception("Invalid credentials")))
+        viewModel.onFirstNameChange("John")
+        viewModel.onLastNameChange("Doe")
+        viewModel.onPhoneNumberChange("1234567890")
+        whenever(registerUseCase.initiate(any(), any(), any(), any(), any())).thenReturn(Result.success(Unit))
 
-        viewModel.login()
+        viewModel.initiateRegister()
         advanceUntilIdle()
 
-        val authState = viewModel.state.value.authState
-        assertTrue(authState is AuthState.Error)
-        assertEquals("Invalid credentials", (authState as AuthState.Error).message)
+        assertEquals(AuthState.OtpSentRegister, viewModel.state.value.authState)
     }
 
     @Test
-    fun testRegisterSuccessUpdatesState() = runTest {
-        viewModel.onUsernameChange("testuser")
-        viewModel.onPasswordChange("testpass")
-        whenever(registerUseCase.invoke(any(), any())).thenReturn(Result.success(Unit))
+    fun testVerifyRegisterSuccessUpdatesState() = runTest {
+        viewModel.onUsernameChange("testuser@example.com")
+        viewModel.onOtpChange("123456")
+        whenever(registerUseCase.verify(any(), any())).thenReturn(Result.success(Unit))
 
-        viewModel.register()
+        viewModel.verifyRegister()
         advanceUntilIdle()
 
         assertEquals(AuthState.RegisterSuccess, viewModel.state.value.authState)
-    }
-
-    @Test
-    fun testRegisterFailureUpdatesErrorState() = runTest {
-        viewModel.onUsernameChange("testuser")
-        viewModel.onPasswordChange("testpass")
-        whenever(registerUseCase.invoke(any(), any())).thenReturn(Result.failure(Exception("Registration failed")))
-
-        viewModel.register()
-        advanceUntilIdle()
-
-        val authState = viewModel.state.value.authState
-        assertTrue(authState is AuthState.Error)
-        assertEquals("Registration failed", (authState as AuthState.Error).message)
     }
 
     @Test

@@ -1,6 +1,8 @@
 package com.hevincj.cashflow.di
 
 import android.app.Application
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.room.Room
 import com.hevincj.cashflow.data.local.CashFlowDatabase
 import com.hevincj.cashflow.data.local.dao.TransactionDao
@@ -37,6 +39,9 @@ import com.hevincj.cashflow.data.worker.RecurringExpenseSyncManager
 import com.hevincj.cashflow.data.remote.api.BudgetApi
 import com.hevincj.cashflow.data.worker.BudgetSyncScheduler
 import com.hevincj.cashflow.data.worker.BudgetSyncManager
+import com.hevincj.cashflow.data.remote.api.UserApi
+import com.hevincj.cashflow.domain.repository.UserRepository
+import com.hevincj.cashflow.data.repository.UserRepositoryImpl
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -61,9 +66,6 @@ object AppModule {
             CashFlowDatabase.DATABASE_NAME
         )
         .fallbackToDestructiveMigration(dropAllTables = true)
-        // WAL allows concurrent reads and writes, preventing DB lock contention
-        // that causes visible freeze/stutter when the HomeViewModel Flow collector
-        // and the background sync write hit the DB simultaneously on startup.
         .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
         .build()
     }
@@ -87,9 +89,10 @@ object AppModule {
         api: TransactionApi,
         syncScheduler: TransactionSyncScheduler,
         pendingDeleteManager: PendingDeleteManager,
-        syncManager: TransactionSyncManager
+        syncManager: TransactionSyncManager,
+        @ApplicationContext context: Context
     ): TransactionRepository {
-        return TransactionRepositoryImpl(dao, api, syncScheduler, pendingDeleteManager, syncManager)
+        return TransactionRepositoryImpl(dao, api, syncScheduler, pendingDeleteManager, syncManager, context)
     }
 
     @Provides
@@ -156,5 +159,26 @@ object AppModule {
         syncManager: RecurringExpenseSyncManager
     ): RecurringExpenseRepository {
         return RecurringExpenseRepositoryImpl(dao, api, syncScheduler, pendingDeleteManager, syncManager)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUserRepository(api: UserApi): UserRepository {
+        return UserRepositoryImpl(api)
+    }
+
+    @Provides
+    @Singleton
+    fun provideExchangeRepository(
+        api: com.hevincj.cashflow.data.remote.api.ExchangeApi,
+        dao: com.hevincj.cashflow.data.local.dao.ExchangeRateDao
+    ): com.hevincj.cashflow.domain.repository.ExchangeRepository {
+        return com.hevincj.cashflow.data.repository.ExchangeRepositoryImpl(api, dao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideExchangeRateDao(db: CashFlowDatabase): com.hevincj.cashflow.data.local.dao.ExchangeRateDao {
+        return db.exchangeRateDao
     }
 }

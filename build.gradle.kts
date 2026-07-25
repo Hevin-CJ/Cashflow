@@ -6,4 +6,6 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.allopen) apply false
+    alias(libs.plugins.android.test) apply false
+    alias(libs.plugins.baseline.profile) apply false
 }

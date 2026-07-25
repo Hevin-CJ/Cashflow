@@ -7,6 +7,8 @@ import androidx.navigation.NavController
 import com.hevincj.cashflow.domain.models.CreditCard
 import com.hevincj.cashflow.ui.screen.state.CardsUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.CardsViewModel
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -24,13 +26,13 @@ class CardsScreenTest {
 
     @Test
     fun testCardsScreenDisplaysCards() {
-        val sampleCards = listOf(
+        val sampleCards = persistentListOf(
             CreditCard(
                 id = "1",
                 balance = 12500.0,
                 cardNumber = "4111 2222 3333 4444",
                 cardHolder = "Johnathan Doe",
-                gradientColors = listOf(0xFF000000L, 0xFFFFFFFFL)
+                gradientColors = persistentListOf(0xFF000000L, 0xFFFFFFFFL)
             )
         )
         stateFlow.value = CardsUiState(cards = sampleCards, isLoading = false)
@@ -55,7 +57,7 @@ class CardsScreenTest {
 
     @Test
     fun testCardsScreenDisplaysEmptyState() {
-        stateFlow.value = CardsUiState(cards = emptyList(), isLoading = false)
+        stateFlow.value = CardsUiState(cards = persistentListOf(), isLoading = false)
         whenever(viewModel.state).thenReturn(stateFlow)
 
         composeTestRule.setContent {

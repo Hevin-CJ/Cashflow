@@ -1,6 +1,8 @@
 package com.hevincj.cashflow.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -16,14 +18,18 @@ import androidx.navigation.NavType
 import com.hevincj.cashflow.ui.screen.AddCardScreen
 import com.hevincj.cashflow.ui.screen.SubscriptionManagerScreen
 import com.hevincj.cashflow.ui.screen.AddTransactionScreen
+import com.hevincj.cashflow.ui.screen.ExchangeRateScreen
 import com.hevincj.cashflow.ui.screen.AllTransactionsScreen
 import com.hevincj.cashflow.ui.screen.MainScreen
+import com.hevincj.cashflow.ui.screen.EditProfileScreen
 import com.hevincj.cashflow.ui.screen.BatchScanScreen
 import com.hevincj.cashflow.ui.screen.ReceiptScanScreen
 import com.hevincj.cashflow.ui.screen.ScanOptionsUi
 import com.hevincj.cashflow.ui.screen.auth.LoginScreen
+import com.hevincj.cashflow.ui.screen.auth.OtpVerificationScreen
 import com.hevincj.cashflow.ui.screen.auth.RegisterScreen
 import com.hevincj.cashflow.ui.screen.splash.SplashScreen
+import com.hevincj.cashflow.ui.screen.viewmodel.AuthViewModel
 
 @Composable
 fun RootNavigation() {
@@ -74,8 +80,26 @@ fun RootNavigation() {
         ) {
             RegisterScreen(navController = rootNavController)
         }
+        composable(
+            route = "otp_verification/{flowType}",
+            arguments = listOf(navArgument("flowType") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val flowType = backStackEntry.arguments?.getString("flowType") ?: "login"
+            val parentEntry = remember(backStackEntry) {
+                rootNavController.previousBackStackEntry!!
+            }
+            val authViewModel: AuthViewModel = hiltViewModel(parentEntry)
+            OtpVerificationScreen(
+                navController = rootNavController,
+                flowType = flowType,
+                viewModel = authViewModel
+            )
+        }
         composable("main") {
             MainScreen(rootNavController = rootNavController)
+        }
+        composable("edit_profile") {
+            EditProfileScreen(navController = rootNavController)
         }
         composable(
             route = "add_transaction?transactionId={transactionId}&title={title}&amount={amount}&category={category}&date={date}&description={description}&barcode={barcode}",
@@ -163,6 +187,14 @@ fun RootNavigation() {
         }
         composable("subscription_manager") {
             SubscriptionManagerScreen(navController = rootNavController)
+        }
+        composable("exchange_currency") {
+            val exchangeViewModel: com.hevincj.cashflow.ui.screen.viewmodel.ExchangeRateViewModel = hiltViewModel()
+            ExchangeRateScreen(
+                innerPadding = androidx.compose.foundation.layout.PaddingValues(),
+                navController = rootNavController,
+                viewModel = exchangeViewModel
+            )
         }
     }
 }

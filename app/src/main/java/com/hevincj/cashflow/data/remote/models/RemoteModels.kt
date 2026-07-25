@@ -8,7 +8,15 @@ data class LoginRequestDto(
 
 data class RegisterRequestDto(
     val username: String,
-    val password: String
+    val password: String,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val phoneNumber: String? = null
+)
+
+data class VerifyOtpRequestDto(
+    val username: String,
+    val otp: String
 )
 
 data class LoginResponseDto(

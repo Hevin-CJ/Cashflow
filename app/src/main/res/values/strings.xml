@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">CashFlow</string>
+    <string name="widget_description">Displays your current monthly balance and quick add shortcut.</string>
 </resources>

@@ -21,5 +21,6 @@ data class HomeUiState(
     val balanceRange: BalanceRange = BalanceRange.ALL_TIME,
     val isLoading: Boolean = true,
     val error: String? = null,
-    val exceededBudgets: ImmutableList<Budget> = persistentListOf()
+    val exceededBudgets: ImmutableList<Budget> = persistentListOf(),
+    val isSessionExpired: Boolean = false
 )

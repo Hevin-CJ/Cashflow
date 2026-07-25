@@ -10,6 +10,7 @@ import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.repository.ScanRepository
 import com.hevincj.cashflow.domain.repository.TransactionRepository
+import com.hevincj.cashflow.domain.usecase.AnalyzeReceiptUseCase
 import com.hevincj.cashflow.ui.screen.state.ScanUiState
 import com.hevincj.cashflow.utils.isProductValid
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,7 +38,8 @@ sealed interface ScanEvent {
 @HiltViewModel
 class ScanViewModel @Inject constructor(
     private val scanRepository: ScanRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val analyzeReceiptUseCase: AnalyzeReceiptUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ScanUiState())
@@ -336,13 +338,10 @@ class ScanViewModel @Inject constructor(
         }
     }
 
-    fun analyzeReceipt(bytes: ByteArray, tempApiKey: String, onResult: (ReceiptScanResult?) -> Unit) {
+    fun analyzeReceipt(bytes: ByteArray, onResult: (ReceiptScanResult?) -> Unit) {
         _state.update { state -> state.copy(isAnalyzing = true) }
-        if (tempApiKey.isNotEmpty()) {
-            System.setProperty("GEMINI_API_KEY", tempApiKey)
-        }
         viewModelScope.launch {
-            val result = scanRepository.analyzeReceipt(bytes)
+            val result = analyzeReceiptUseCase(bytes)
             _state.update { state -> state.copy(isAnalyzing = false) }
             onResult(result)
         }

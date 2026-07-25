@@ -1,5 +1,6 @@
 package com.hevincj.cashflow
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hevincj.cashflow.data.local.ThemeManager
 import com.hevincj.cashflow.data.local.ThemeMode
@@ -26,8 +29,12 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var recurringExpenseSyncScheduler: RecurringExpenseSyncScheduler
 
+    var shouldNavigateToAddTransaction by mutableStateOf(false)
+        private set
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleIntent(intent)
         requestHighRefreshRate()
         enableEdgeToEdge()
 
@@ -45,6 +52,23 @@ class MainActivity : ComponentActivity() {
                 RootNavigation()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == "com.hevincj.cashflow.ACTION_ADD_TRANSACTION") {
+            shouldNavigateToAddTransaction = true
+        }
+    }
+
+    fun consumeAddTransactionAction(): Boolean {
+        val result = shouldNavigateToAddTransaction
+        shouldNavigateToAddTransaction = false
+        return result
     }
 
     private fun requestHighRefreshRate() {

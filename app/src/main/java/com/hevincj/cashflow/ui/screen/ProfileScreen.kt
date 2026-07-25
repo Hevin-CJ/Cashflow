@@ -31,8 +31,12 @@ import androidx.compose.material3.SnackbarDuration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import com.hevincj.cashflow.data.local.ThemeMode
+import com.hevincj.cashflow.ui.screen.state.ProfileUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.ProfileViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.ExportDateRange
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
 import com.hevincj.cashflow.ui.theme.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +65,7 @@ data class ProfileMenuItem(
 val menuItems = listOf(
     ProfileMenuItem("Account Info", Icons.Default.Person, Color(0xFF635BFF)),
     ProfileMenuItem("Export To CSV/PDF", Icons.Default.Share, Color(0xFF65C466)),
+    ProfileMenuItem("Exchange Currency", Icons.Default.AttachMoney, Color(0xFF0288D1)),
     ProfileMenuItem("Subscriptions & Recurring", Icons.Default.Autorenew, Color(0xFFFF9F1C)),
     ProfileMenuItem("Settings", Icons.Default.Settings, Color(0xFF32827A)),
     ProfileMenuItem("Logout", Icons.AutoMirrored.Filled.ExitToApp, Color(0xFFE93B3A))
@@ -336,6 +341,10 @@ fun ProfileScreen(
         )
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.fetchUserProfile()
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -346,7 +355,7 @@ fun ProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(64.dp))
-            ProfileHeader()
+            ProfileHeader(uiState = uiState, onClick = { rootNavController.navigate("edit_profile") })
             Spacer(modifier = Modifier.height(48.dp))
 
             menuItems.forEach { item ->
@@ -354,8 +363,10 @@ fun ProfileScreen(
                     item = item,
                     onClick = {
                         when (item.title) {
+                            "Account Info" -> rootNavController.navigate("edit_profile")
                             "Logout" -> showLogoutDialog = true
                             "Settings" -> showSettingsDialog = true
+                            "Exchange Currency" -> rootNavController.navigate("exchange_currency")
                             "Subscriptions & Recurring" -> rootNavController.navigate("subscription_manager")
                             "Export To CSV/PDF" -> showExportDialog = true
                         }
@@ -375,12 +386,17 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileHeader() {
+private fun ProfileHeader(
+    uiState: ProfileUiState,
+    onClick: () -> Unit
+) {
     Box(
         contentAlignment = Alignment.BottomEnd,
-        modifier = Modifier.size(104.dp)
+        modifier = Modifier
+            .size(104.dp)
+            .clickable(onClick = onClick)
     ) {
-        // Profile Image Placeholder
+        // Profile Image Box
         Box(
             modifier = Modifier
                 .size(100.dp)
@@ -388,12 +404,22 @@ private fun ProfileHeader() {
                 .background(if (LocalDarkTheme.current) Color(0xFF2C2C2E) else Color(0xFFEFEFFF)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Profile Picture Placeholder",
-                modifier = Modifier.size(56.dp),
-                tint = Color(0xFF635BFF)
-            )
+            val bitmap = remember(uiState.profileImage) { base64ToBitmap(uiState.profileImage) }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile Picture Placeholder",
+                    modifier = Modifier.size(56.dp),
+                    tint = Color(0xFF635BFF)
+                )
+            }
         }
 
         // Edit Icon Badge
@@ -423,8 +449,14 @@ private fun ProfileHeader() {
 
     Spacer(modifier = Modifier.height(16.dp))
 
+    val fullName = if (uiState.firstName.isBlank() && uiState.lastName.isBlank()) {
+        uiState.username.substringBefore("@")
+    } else {
+        "${uiState.firstName} ${uiState.lastName}".trim()
+    }
+
     Text(
-        text = "Leslie Alexander",
+        text = fullName,
         fontSize = 20.sp,
         fontWeight = FontWeight.SemiBold,
         color = TextPrimary
@@ -433,10 +465,21 @@ private fun ProfileHeader() {
     Spacer(modifier = Modifier.height(4.dp))
 
     Text(
-        text = "leslie@gmail.com",
+        text = uiState.username,
         fontSize = 14.sp,
         color = TextSecondary
     )
+}
+
+fun base64ToBitmap(base64Str: String?): android.graphics.Bitmap? {
+    if (base64Str.isNullOrEmpty()) return null
+    return try {
+        val bytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
 }
 
 @Composable

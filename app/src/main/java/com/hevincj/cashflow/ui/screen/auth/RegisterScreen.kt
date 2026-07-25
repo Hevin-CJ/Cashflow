@@ -25,6 +25,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,13 +52,9 @@ fun RegisterScreen(
 
     LaunchedEffect(uiState.authState) {
         when (uiState.authState) {
-            is AuthState.RegisterSuccess -> {
-                Toast.makeText(context, "Registration successful. Please login.", Toast.LENGTH_SHORT).show()
+            is AuthState.OtpSentRegister -> {
+                navController.navigate("otp_verification/register")
                 viewModel.resetState()
-                navController.navigate("login") {
-                    popUpTo("login") { inclusive = false }
-                    launchSingleTop = true
-                }
             }
             is AuthState.Error -> {
                 Toast.makeText(context, (uiState.authState as AuthState.Error).message, Toast.LENGTH_SHORT).show()
@@ -74,7 +73,8 @@ fun RegisterScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -92,14 +92,68 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             OutlinedTextField(
-                value = uiState.username,
-                onValueChange = viewModel::onUsernameChange,
-                label = { Text("Username") },
+                value = uiState.firstName,
+                onValueChange = viewModel::onFirstNameChange,
+                label = { Text("First Name") },
                 leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = uiState.lastName,
+                onValueChange = viewModel::onLastNameChange,
+                label = { Text("Last Name") },
+                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = uiState.username,
+                onValueChange = viewModel::onUsernameChange,
+                label = { Text("Email") },
+                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = uiState.phoneNumber,
+                onValueChange = viewModel::onPhoneNumberChange,
+                label = { Text("Phone Number") },
+                leadingIcon = { Icon(Icons.Rounded.Phone, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
                     imeAction = ImeAction.Next
                 ),
                 keyboardActions = KeyboardActions(
@@ -132,7 +186,7 @@ fun RegisterScreen(
                 keyboardActions = KeyboardActions(
                     onDone = { 
                         focusManager.clearFocus()
-                        viewModel.register()
+                        viewModel.initiateRegister()
                     }
                 )
             )
@@ -142,7 +196,7 @@ fun RegisterScreen(
             Button(
                 onClick = { 
                     focusManager.clearFocus()
-                    viewModel.register() 
+                    viewModel.initiateRegister() 
                 },
                 modifier = Modifier
                     .fillMaxWidth()

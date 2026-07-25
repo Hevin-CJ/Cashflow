@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -38,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.background
 import kotlin.math.atan2
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 import com.hevincj.cashflow.ui.screen.state.MonthlyNetSavings
 import java.time.YearMonth
 
@@ -219,12 +223,12 @@ fun StatisticsScreenContent(
     val filteredTransactions = remember(stats?.recentTransactions, selectedTab) {
         stats?.recentTransactions?.filter {
             it.type == selectedTab
-        } ?: emptyList()
+        }?.toImmutableList() ?: persistentListOf()
     }
 
     val displayedTransactions = remember(filteredTransactions, selectedCategory) {
         if (selectedCategory != null) {
-            filteredTransactions.filter { it.category == selectedCategory }
+            filteredTransactions.filter { it.category == selectedCategory }.toImmutableList()
         } else {
             filteredTransactions
         }
@@ -279,8 +283,8 @@ fun StatisticsScreenContent(
                         selectedMonth = uiState.selectedMonth,
                         availableMonths = uiState.availableMonths,
                         onMonthSelected = onMonthSelected,
-                        incomeData = stats?.weeklyIncome ?: emptyList(),
-                        expenseData = stats?.weeklyExpenses ?: emptyList()
+                        incomeData = stats?.weeklyIncome ?: persistentListOf(),
+                        expenseData = stats?.weeklyExpenses ?: persistentListOf()
                     ) 
                 }
 
@@ -295,7 +299,8 @@ fun StatisticsScreenContent(
                     CategoryDonutChart(
                         filteredTransactions = filteredTransactions,
                         selectedCategory = selectedCategory,
-                        onCategorySelected = { selectedCategory = it }
+                        onCategorySelected = { selectedCategory = it },
+                        selectedTab = selectedTab
                     )
                 }
 
@@ -380,10 +385,10 @@ private fun IncomeExpenseSummaryRow(income: Double, expense: Double) {
 @Composable
 private fun ChartSection(
     selectedMonth: java.time.YearMonth,
-    availableMonths: List<java.time.YearMonth>,
+    availableMonths: ImmutableList<java.time.YearMonth>,
     onMonthSelected: (java.time.YearMonth) -> Unit,
-    incomeData: List<Float>,
-    expenseData: List<Float>
+    incomeData: ImmutableList<Float>,
+    expenseData: ImmutableList<Float>
 ) {
     val dateRange = remember(selectedMonth) {
         val startLocalDate = selectedMonth.atDay(1)
@@ -463,7 +468,44 @@ private fun ChartSection(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Chart Legend (Income / Expense)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(IncomePurpleColor, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Income",
+                color = ChartLabelColor,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.SansSerif,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(ExpenseOrangeColor, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Expense",
+                color = ChartLabelColor,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.SansSerif,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         if (incomeData.isNotEmpty() && expenseData.isNotEmpty()) {
             GroupedBarChart(
@@ -478,18 +520,26 @@ private fun ChartSection(
             Spacer(modifier = Modifier.height(10.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 50.dp), // Align with chart
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf("Week 1", "Week 2", "Week 3", "Week 4").forEach { label ->
-                    Text(
-                        text = label,
-                        color = ChartLabelColor,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.SansSerif
-                    )
+                Spacer(modifier = Modifier.width(55.dp)) // Match Y-axis labels (45dp) + spacer (10dp)
+                Row(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    listOf("Week 1", "Week 2", "Week 3", "Week 4").forEach { label ->
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = ChartLabelColor,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.SansSerif
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -603,8 +653,8 @@ fun SummaryCard(
 
 @Composable
 fun GroupedBarChart(
-    incomeData: List<Float>,
-    expenseData: List<Float>,
+    incomeData: ImmutableList<Float>,
+    expenseData: ImmutableList<Float>,
     selectedMonth: java.time.YearMonth,
     modifier: Modifier = Modifier
 ) {
@@ -697,41 +747,45 @@ fun GroupedBarChart(
                         val expenseStartX = groupStartX + barWidthPx + barGapPx
 
                         // Calculate animated heights in pixels
-                        val animatedIncomeHeight = (incomeData[i] / maxYValue) * size.height * animatedProgress.value
-                        val animatedExpenseHeight = (expenseData[i] / maxYValue) * size.height * animatedProgress.value
+                        // Calculate animated heights in pixels
+                        val rawIncomeHeight = (incomeData[i] / maxYValue) * size.height * animatedProgress.value
+                        val rawExpenseHeight = (expenseData[i] / maxYValue) * size.height * animatedProgress.value
+
+                        val animatedIncomeHeight = if (incomeData[i] > 0f) maxOf(rawIncomeHeight, cornerRadiusPx) else 0f
+                        val animatedExpenseHeight = if (expenseData[i] > 0f) maxOf(rawExpenseHeight, cornerRadiusPx) else 0f
 
                         // Draw Income Bar (Purple)
                         if (animatedIncomeHeight > 0f) {
-                            drawRoundRect(
-                                color = IncomePurpleColor,
-                                topLeft = Offset(incomeStartX, size.height - animatedIncomeHeight),
-                                size = Size(barWidthPx, animatedIncomeHeight),
-                                cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
-                            )
-                            if (animatedIncomeHeight > cornerRadiusPx) {
-                                drawRect(
-                                    color = IncomePurpleColor,
-                                    topLeft = Offset(incomeStartX, size.height - cornerRadiusPx),
-                                    size = Size(barWidthPx, cornerRadiusPx)
+                            val path = Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        left = incomeStartX,
+                                        top = size.height - animatedIncomeHeight,
+                                        right = incomeStartX + barWidthPx,
+                                        bottom = size.height,
+                                        topLeftCornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                                        topRightCornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                                    )
                                 )
                             }
+                            drawPath(path, color = IncomePurpleColor)
                         }
 
                         // Draw Expense Bar (Orange)
                         if (animatedExpenseHeight > 0f) {
-                            drawRoundRect(
-                                color = ExpenseOrangeColor,
-                                topLeft = Offset(expenseStartX, size.height - animatedExpenseHeight),
-                                size = Size(barWidthPx, animatedExpenseHeight),
-                                cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
-                            )
-                            if (animatedExpenseHeight > cornerRadiusPx) {
-                                drawRect(
-                                    color = ExpenseOrangeColor,
-                                    topLeft = Offset(expenseStartX, size.height - cornerRadiusPx),
-                                    size = Size(barWidthPx, cornerRadiusPx)
+                            val path = Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        left = expenseStartX,
+                                        top = size.height - animatedExpenseHeight,
+                                        right = expenseStartX + barWidthPx,
+                                        bottom = size.height,
+                                        topLeftCornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                                        topRightCornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                                    )
                                 )
                             }
+                            drawPath(path, color = ExpenseOrangeColor)
                         }
                     }
                 }
@@ -808,9 +862,10 @@ private fun CustomStatTransactionItem(
 
 @Composable
 fun CategoryDonutChart(
-    filteredTransactions: List<Transaction>,
+    filteredTransactions: ImmutableList<Transaction>,
     selectedCategory: TransactionCategory?,
     onCategorySelected: (TransactionCategory?) -> Unit,
+    selectedTab: TransactionType,
     modifier: Modifier = Modifier
 ) {
     val totalAmount = remember(filteredTransactions) {
@@ -827,7 +882,7 @@ fun CategoryDonutChart(
     val unselectedColor = TabUnselectedColor
     val textPrimary = TextPrimary
     val textSecondary = TextSecondary
-    val accentColor = FABBackgroundColor
+    val accentColor = if (selectedTab == TransactionType.EXPENSE) ExpenseOrangeColor else IncomePurpleColor
 
     if (totalAmount == 0.0) {
         Card(
@@ -849,23 +904,67 @@ fun CategoryDonutChart(
         return
     }
 
-    val chartColors = listOf(
-        Color(0xFF8121FD), // Purple
-        Color(0xFFFF5722), // Orange
-        Color(0xFF00B0FF), // Blue
-        Color(0xFF00E676), // Green
-        Color(0xFFFFD600), // Yellow
-        Color(0xFFFF4081), // Pink
-        Color(0xFF651FFF), // Deep Purple
-        Color(0xFF1DE9B6), // Teal
-        Color(0xFFFF9100), // Amber
-        Color(0xFF3D5AFE)  // Indigo
-    )
+    val chartColors = if (selectedTab == TransactionType.EXPENSE) {
+        listOf(
+            Color(0xFFFF5722), // Orange (primary expense)
+            Color(0xFFFF4081), // Pink
+            Color(0xFFFF9100), // Amber
+            Color(0xFFFFD600), // Yellow
+            Color(0xFFE53935), // Red
+            Color(0xFF8121FD), // Purple
+            Color(0xFF651FFF), // Deep Purple
+            Color(0xFF00B0FF), // Blue
+            Color(0xFF00E676), // Green
+            Color(0xFF1DE9B6)  // Teal
+        )
+    } else {
+        listOf(
+            Color(0xFF8121FD), // Purple (primary income)
+            Color(0xFF00B0FF), // Blue
+            Color(0xFF00E676), // Green
+            Color(0xFF1DE9B6), // Teal
+            Color(0xFF3D5AFE), // Indigo
+            Color(0xFF651FFF), // Deep Purple
+            Color(0xFFFFD600), // Yellow
+            Color(0xFFFF9100), // Amber
+            Color(0xFFFF5722), // Orange
+            Color(0xFFFF4081)  // Pink
+        )
+    }
 
-    val categoryColors = remember(categorySums) {
+    val categoryColors = remember(categorySums, selectedTab) {
         categorySums.mapIndexed { index, pair ->
             pair.first to chartColors[index % chartColors.size]
         }.toMap()
+    }
+
+    val categoryPercentages = remember(categorySums, totalAmount) {
+        if (totalAmount <= 0.0 || categorySums.isEmpty()) {
+            emptyMap<TransactionCategory, Double>()
+        } else {
+            val scale = 10
+            val scaledTotal = 100 * scale // 1000 for 1 decimal place precision
+            val initialFloors = categorySums.map { (category, amount) ->
+                val rawPct = (amount / totalAmount) * 100.0
+                val scaledVal = rawPct * scale
+                val floorVal = kotlin.math.floor(scaledVal).toInt()
+                val remainder = scaledVal - floorVal
+                Triple(category, floorVal, remainder)
+            }
+            val sumFloors = initialFloors.sumOf { it.second }
+            val diff = scaledTotal - sumFloors
+            
+            // Sort by remainder descending
+            val sortedByRemainder = initialFloors.sortedByDescending { it.third }
+            val distributedMap = initialFloors.associate { it.first to it.second }.toMutableMap()
+            for (i in 0 until diff) {
+                if (i < sortedByRemainder.size) {
+                    val cat = sortedByRemainder[i].first
+                    distributedMap[cat] = (distributedMap[cat] ?: 0) + 1
+                }
+            }
+            distributedMap.mapValues { it.value.toDouble() / scale }
+        }
     }
 
     val density = LocalDensity.current
@@ -969,11 +1068,12 @@ fun CategoryDonutChart(
                         } else {
                             totalAmount
                         }
-                        val percentage = if (selectedCategory != null && totalAmount > 0) {
-                            ((amount / totalAmount) * 100).toInt()
+                        val percentage = if (selectedCategory != null) {
+                            categoryPercentages[selectedCategory] ?: 0.0
                         } else {
-                            100
+                            100.0
                         }
+                        val percentageStr = String.format(java.util.Locale.getDefault(), "%.1f", percentage)
 
                         Text(
                             text = label,
@@ -985,14 +1085,14 @@ fun CategoryDonutChart(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "$${amount.toInt()}",
+                            text = "$${amount.roundToInt()}",
                             color = textPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(1.dp))
                         Text(
-                            text = "$percentage%",
+                            text = "$percentageStr%",
                             color = accentColor,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -1011,7 +1111,8 @@ fun CategoryDonutChart(
                     val isSelected = selectedCategory == category
                     val isAnySelected = selectedCategory != null
                     val color = categoryColors[category] ?: Color.Gray
-                    val percentage = ((amount / totalAmount) * 100).toInt()
+                    val percentage = categoryPercentages[category] ?: 0.0
+                    val percentageStr = String.format(java.util.Locale.getDefault(), "%.1f", percentage)
                     val alpha = if (isSelected) 1f else if (isAnySelected) 0.5f else 1f
 
                     Row(
@@ -1035,7 +1136,7 @@ fun CategoryDonutChart(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "$${amount.toInt()} ($percentage%)",
+                            text = "$${amount.roundToInt()} ($percentageStr%)",
                             color = textSecondary.copy(alpha = alpha),
                             fontSize = 13.sp
                         )
@@ -1048,7 +1149,7 @@ fun CategoryDonutChart(
 
 @Composable
 fun NetSavingsLineChart(
-    netSavingsTrend: List<MonthlyNetSavings>,
+    netSavingsTrend: ImmutableList<MonthlyNetSavings>,
     selectedMonth: YearMonth,
     onMonthSelected: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
@@ -1106,8 +1207,10 @@ fun NetSavingsLineChart(
     }
     val linePath = remember { Path() }
     val fillPath = remember { Path() }
-    val gradientColors = remember(accentColor) {
-        listOf(accentColor.copy(alpha = 0.25f), Color.Transparent)
+    val gradientBrush = remember(accentColor) {
+        Brush.verticalGradient(
+            colors = listOf(accentColor.copy(alpha = 0.25f), Color.Transparent)
+        )
     }
 
     Card(
@@ -1139,8 +1242,6 @@ fun NetSavingsLineChart(
                     val pointsCount = displayedTrend.size
                     if (pointsCount > 0) {
                         val widthStep = if (pointsCount > 1) size.width / (pointsCount - 1) else size.width
-                        val getX = { index: Int -> index * widthStep }
-                        val getY = { index: Int -> (size.height - ((displayedTrend[index].amount - adjustedMin) / adjustedRange) * size.height).toFloat() }
 
                         // 1. Draw horizontal grid lines
                         val gridLineCount = 3
@@ -1159,39 +1260,41 @@ fun NetSavingsLineChart(
                         // 2. Draw curve fill path (gradient area under the line)
                         if (pointsCount > 1) {
                             fillPath.reset()
-                            fillPath.moveTo(getX(0), size.height)
-                            fillPath.lineTo(getX(0), getY(0))
+                            fillPath.moveTo(0f, size.height)
+                            
+                            val firstY = (size.height - ((displayedTrend[0].amount - adjustedMin) / adjustedRange) * size.height).toFloat()
+                            fillPath.lineTo(0f, firstY)
+                            
                             for (i in 0 until pointsCount - 1) {
-                                val x0 = getX(i)
-                                val y0 = getY(i)
-                                val x1 = getX(i + 1)
-                                val y1 = getY(i + 1)
+                                val x0 = i * widthStep
+                                val y0 = (size.height - ((displayedTrend[i].amount - adjustedMin) / adjustedRange) * size.height).toFloat()
+                                val x1 = (i + 1) * widthStep
+                                val y1 = (size.height - ((displayedTrend[i + 1].amount - adjustedMin) / adjustedRange) * size.height).toFloat()
+                                
                                 val cx1 = x0 + (x1 - x0) / 2f
                                 val cy1 = y0
                                 val cx2 = x0 + (x1 - x0) / 2f
                                 val cy2 = y1
                                 fillPath.cubicTo(cx1, cy1, cx2, cy2, x1, y1)
                             }
-                            fillPath.lineTo(getX(pointsCount - 1), size.height)
+                            fillPath.lineTo((pointsCount - 1) * widthStep, size.height)
                             fillPath.close()
 
                             drawPath(
                                 path = fillPath,
-                                brush = Brush.verticalGradient(
-                                    colors = gradientColors,
-                                    startY = 0f,
-                                    endY = size.height
-                                )
+                                brush = gradientBrush
                             )
 
                             // 3. Draw the smooth curve line
                             linePath.reset()
-                            linePath.moveTo(getX(0), getY(0))
+                            linePath.moveTo(0f, firstY)
+                            
                             for (i in 0 until pointsCount - 1) {
-                                val x0 = getX(i)
-                                val y0 = getY(i)
-                                val x1 = getX(i + 1)
-                                val y1 = getY(i + 1)
+                                val x0 = i * widthStep
+                                val y0 = (size.height - ((displayedTrend[i].amount - adjustedMin) / adjustedRange) * size.height).toFloat()
+                                val x1 = (i + 1) * widthStep
+                                val y1 = (size.height - ((displayedTrend[i + 1].amount - adjustedMin) / adjustedRange) * size.height).toFloat()
+                                
                                 val cx1 = x0 + (x1 - x0) / 2f
                                 val cy1 = y0
                                 val cx2 = x0 + (x1 - x0) / 2f
@@ -1210,8 +1313,8 @@ fun NetSavingsLineChart(
                         for (index in 0 until pointsCount) {
                             val item = displayedTrend[index]
                             val isSelected = item.month == selectedMonth
-                            val px = getX(index)
-                            val py = getY(index)
+                            val px = index * widthStep
+                            val py = (size.height - ((item.amount - adjustedMin) / adjustedRange) * size.height).toFloat()
 
                             if (isSelected) {
                                 drawLine(

@@ -43,75 +43,72 @@ class AuthRepositoryImplTest {
     }
 
     @Test
-    fun testLoginSuccessSavesTokenAndReturnsSuccess() = runTest {
-        val loginResponseDto = LoginResponseDto("1", "user", "my_jwt_token")
-        val successResponse = Response.success(loginResponseDto)
-        whenever(api.login(any())).thenReturn(successResponse)
+    fun testInitiateLoginSuccess() = runTest {
+        val successResponseBody = "".toResponseBody("text/plain".toMediaTypeOrNull())
+        val successResponse = Response.success(successResponseBody)
+        whenever(api.loginInitiate(any())).thenReturn(successResponse)
 
-        val result = repository.login("user", "pass")
+        val result = repository.initiateLogin("user", "pass")
 
         assertTrue(result.isSuccess)
-        verify(tokenManager).saveToken("my_jwt_token")
     }
 
     @Test
-    fun testLoginSuccessWithNoTokenReturnsFailure() = runTest {
-        val loginResponseDto = LoginResponseDto("1", "user", "")
-        // Wait, what if token field is empty, or let's mock response body containing null token if possible?
-        // In our DTO, token is non-nullable String. But body itself can be null.
-        val successResponse = Response.success<LoginResponseDto>(null)
-        whenever(api.login(any())).thenReturn(successResponse)
-
-        val result = repository.login("user", "pass")
-
-        assertTrue(result.isFailure)
-        assertEquals("No token in response", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun testLoginFailureReturnsError() = runTest {
+    fun testInitiateLoginFailure() = runTest {
         val errorBody = "Invalid Credentials".toResponseBody("application/json".toMediaTypeOrNull())
-        val errorResponse = Response.error<LoginResponseDto>(400, errorBody)
-        whenever(api.login(any())).thenReturn(errorResponse)
+        val errorResponse = Response.error<okhttp3.ResponseBody>(400, errorBody)
+        whenever(api.loginInitiate(any())).thenReturn(errorResponse)
 
-        val result = repository.login("user", "pass")
+        val result = repository.initiateLogin("user", "pass")
 
         assertTrue(result.isFailure)
         assertEquals("Invalid Credentials", result.exceptionOrNull()?.message)
     }
 
     @Test
-    fun testLoginExceptionReturnsFailure() = runTest {
-        val exception = RuntimeException("Network Error")
-        whenever(api.login(any())).thenThrow(exception)
+    fun testVerifyLoginSuccess() = runTest {
+        val loginResponseDto = LoginResponseDto("1", "user", "my_jwt_token")
+        val successResponse = Response.success(loginResponseDto)
+        whenever(api.loginVerify(any())).thenReturn(successResponse)
 
-        val result = repository.login("user", "pass")
+        val result = repository.verifyLogin("user", "123456")
 
-        assertTrue(result.isFailure)
-        assertEquals("Network Error", result.exceptionOrNull()?.message)
+        assertTrue(result.isSuccess)
+        verify(tokenManager).saveToken("my_jwt_token")
     }
 
     @Test
-    fun testRegisterSuccessReturnsSuccess() = runTest {
-        val registerResponseDto = RegisterResponseDto("1", "user")
-        val successResponse = Response.success(registerResponseDto)
-        whenever(api.register(any())).thenReturn(successResponse)
+    fun testVerifyLoginNoToken() = runTest {
+        val successResponse = Response.success<LoginResponseDto>(null)
+        whenever(api.loginVerify(any())).thenReturn(successResponse)
 
-        val result = repository.register("user", "pass")
+        val result = repository.verifyLogin("user", "123456")
+
+        assertTrue(result.isFailure)
+        assertEquals("No token in response", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun testInitiateRegisterSuccess() = runTest {
+        val successResponseBody = "".toResponseBody("text/plain".toMediaTypeOrNull())
+        val successResponse = Response.success(successResponseBody)
+        whenever(api.registerInitiate(any())).thenReturn(successResponse)
+
+        val result = repository.initiateRegister("user", "pass", "John", "Doe", "1234567890")
 
         assertTrue(result.isSuccess)
     }
 
     @Test
-    fun testRegisterFailureReturnsError() = runTest {
-        val errorBody = "Username exists".toResponseBody("application/json".toMediaTypeOrNull())
-        val errorResponse = Response.error<RegisterResponseDto>(409, errorBody)
-        whenever(api.register(any())).thenReturn(errorResponse)
+    fun testVerifyRegisterSuccess() = runTest {
+        val loginResponseDto = LoginResponseDto("1", "user", "my_jwt_token")
+        val successResponse = Response.success(loginResponseDto)
+        whenever(api.registerVerify(any())).thenReturn(successResponse)
 
-        val result = repository.register("user", "pass")
+        val result = repository.verifyRegister("user", "123456")
 
-        assertTrue(result.isFailure)
-        assertEquals("Username exists", result.exceptionOrNull()?.message)
+        assertTrue(result.isSuccess)
+        verify(tokenManager).saveToken("my_jwt_token")
     }
 
     @Test

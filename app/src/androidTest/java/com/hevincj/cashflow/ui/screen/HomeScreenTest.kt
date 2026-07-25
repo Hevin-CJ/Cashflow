@@ -10,6 +10,8 @@ import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.ui.screen.state.BalanceRange
 import com.hevincj.cashflow.ui.screen.state.HomeUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.HomeViewModel
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -47,7 +49,7 @@ class HomeScreenTest {
     @Test
     fun testHomeScreenDisplaysDashboardElements() {
         val state = HomeUiState(
-            transactions = sampleTransactions,
+            transactions = sampleTransactions.toImmutableList(),
             totalBalance = 5000.0,
             totalIncome = 5000.0,
             totalExpense = 0.0,
@@ -83,7 +85,7 @@ class HomeScreenTest {
     @Test
     fun testHomeScreenDropdownChangesSelectedRange() {
         val state = HomeUiState(
-            transactions = emptyList(),
+            transactions = persistentListOf(),
             totalBalance = 0.0,
             balanceRange = BalanceRange.ALL_TIME,
             isLoading = false
@@ -113,7 +115,7 @@ class HomeScreenTest {
     @Test
     fun testHomeScreenDisplaysShimmerLoadingState() {
         val state = HomeUiState(
-            transactions = emptyList(),
+            transactions = persistentListOf(),
             totalBalance = 0.0,
             isLoading = true,
             error = null
@@ -140,7 +142,7 @@ class HomeScreenTest {
     @Test
     fun testHomeScreenDisplaysEmptyState() {
         val state = HomeUiState(
-            transactions = emptyList(),
+            transactions = persistentListOf(),
             totalBalance = 0.0,
             isLoading = false,
             error = null
@@ -165,7 +167,7 @@ class HomeScreenTest {
     @Test
     fun testHomeScreenDisplaysErrorBanner() {
         val state = HomeUiState(
-            transactions = emptyList(),
+            transactions = persistentListOf(),
             totalBalance = 0.0,
             isLoading = false,
             error = "Database read timeout error"

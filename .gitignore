@@ -23,3 +23,16 @@ local.properties
 
 .md/
 .py/
+*.md
+openspec/
+specs/
+directives/
+execution/
+.specify/
+.tmp/
+.agent/
+# Android Studio / IntelliJ IDEA configuration
+.idea/
+*.iml
+*.ipr
+*.iws

@@ -8,6 +8,7 @@ import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.ui.screen.state.HomeUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.HomeViewModel
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -53,7 +54,7 @@ class AllTransactionsScreenTest {
     @Test
     fun testAllTransactionsDisplaysListAndFiltersBySearchQuery() {
         val state = HomeUiState(
-            transactions = transactions,
+            transactions = transactions.toImmutableList(),
             isLoading = false
         )
         stateFlow.value = state
@@ -78,7 +79,7 @@ class AllTransactionsScreenTest {
     @Test
     fun testAllTransactionsFiltersByCategoryPill() {
         val state = HomeUiState(
-            transactions = transactions,
+            transactions = transactions.toImmutableList(),
             isLoading = false
         )
         stateFlow.value = state

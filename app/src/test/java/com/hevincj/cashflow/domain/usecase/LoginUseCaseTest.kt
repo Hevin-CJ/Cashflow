@@ -25,20 +25,39 @@ class LoginUseCaseTest {
     }
 
     @Test
-    fun testLoginDelegatesToRepositorySuccess() = runTest {
-        whenever(repository.login("user", "pass")).thenReturn(Result.success(Unit))
+    fun testLoginInitiateDelegatesToRepositorySuccess() = runTest {
+        whenever(repository.initiateLogin("user", "pass")).thenReturn(Result.success(Unit))
 
-        val result = loginUseCase("user", "pass")
+        val result = loginUseCase.initiate("user", "pass")
 
         assertEquals(Result.success(Unit), result)
     }
 
     @Test
-    fun testLoginDelegatesToRepositoryFailure() = runTest {
+    fun testLoginInitiateDelegatesToRepositoryFailure() = runTest {
         val exception = Exception("Invalid credentials")
-        whenever(repository.login("user", "pass")).thenReturn(Result.failure(exception))
+        whenever(repository.initiateLogin("user", "pass")).thenReturn(Result.failure(exception))
 
-        val result = loginUseCase("user", "pass")
+        val result = loginUseCase.initiate("user", "pass")
+
+        assertEquals(Result.failure<Unit>(exception), result)
+    }
+
+    @Test
+    fun testLoginVerifyDelegatesToRepositorySuccess() = runTest {
+        whenever(repository.verifyLogin("user", "123456")).thenReturn(Result.success(Unit))
+
+        val result = loginUseCase.verify("user", "123456")
+
+        assertEquals(Result.success(Unit), result)
+    }
+
+    @Test
+    fun testLoginVerifyDelegatesToRepositoryFailure() = runTest {
+        val exception = Exception("Invalid OTP")
+        whenever(repository.verifyLogin("user", "123456")).thenReturn(Result.failure(exception))
+
+        val result = loginUseCase.verify("user", "123456")
 
         assertEquals(Result.failure<Unit>(exception), result)
     }

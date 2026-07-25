@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CashFlow"
 include(":app")
+include(":baselineprofile")

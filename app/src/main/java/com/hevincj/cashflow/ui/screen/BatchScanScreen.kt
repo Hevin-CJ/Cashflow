@@ -254,19 +254,6 @@ private fun BatchScanContent(
         onDispose {
             cameraExecutor.shutdown()
             toneGenerator.release()
-            try {
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                cameraProviderFuture.addListener({
-                    try {
-                        val cameraProvider = cameraProviderFuture.get()
-                        cameraProvider.unbindAll()
-                    } catch (e: Exception) {
-                        // ignore
-                    }
-                }, ContextCompat.getMainExecutor(context))
-            } catch (e: Exception) {
-                // Safe ignore if provider is not available or initialized
-            }
         }
     }
 
@@ -299,7 +286,9 @@ private fun BatchScanContent(
         ) {
             AndroidView(
                 factory = { ctx ->
-                    val previewView = PreviewView(ctx)
+                    val previewView = PreviewView(ctx).apply {
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    }
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                     cameraProviderFuture.addListener({

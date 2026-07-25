@@ -94,6 +94,7 @@ fun ScanOptionsUi(
     var showEnterVpaDialog by remember { mutableStateOf(false) }
     var contactPayeePhone by remember { mutableStateOf("") }
     var showConfirmVpaDialog by remember { mutableStateOf(false) }
+    var showAppPickerForContact by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -150,12 +151,20 @@ fun ScanOptionsUi(
         UpiContactPickerDialog(
             onDismissRequest = { showContactPicker = false },
             onContactSelected = { name, phone ->
-                // Show VPA confirmation instead of using bogus phone@upi
                 contactPayeeName = name
                 contactPayeePhone = phone
                 showContactPicker = false
-                showConfirmVpaDialog = true
+                showAppPickerForContact = true   // → go to app picker, not VPA entry
             }
+        )
+    }
+
+    // New: show installed UPI apps to pay the selected contact directly
+    if (showAppPickerForContact) {
+        UpiAppPickerForContactDialog(
+            contactName = contactPayeeName,
+            contactPhone = contactPayeePhone,
+            onDismissRequest = { showAppPickerForContact = false }
         )
     }
 
@@ -915,19 +924,6 @@ private fun CardScannerView(
         onDispose {
             cameraExecutor.shutdown()
             toneGenerator.release()
-            try {
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                cameraProviderFuture.addListener({
-                    try {
-                        val cameraProvider = cameraProviderFuture.get()
-                        cameraProvider.unbindAll()
-                    } catch (e: Exception) {
-                        // ignore
-                    }
-                }, ContextCompat.getMainExecutor(context))
-            } catch (e: Exception) {
-                // Safe ignore if provider is not available or initialized
-            }
         }
     }
 
@@ -943,7 +939,9 @@ private fun CardScannerView(
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
-                val previewView = PreviewView(ctx)
+                val previewView = PreviewView(ctx).apply {
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                }
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                 cameraProviderFuture.addListener({

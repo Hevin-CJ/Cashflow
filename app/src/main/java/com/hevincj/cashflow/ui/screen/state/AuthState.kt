@@ -8,5 +8,7 @@ sealed class AuthState {
     object Loading : AuthState()
     object LoginSuccess : AuthState()
     object RegisterSuccess : AuthState()
+    object OtpSentLogin : AuthState()
+    object OtpSentRegister : AuthState()
     data class Error(val message: String) : AuthState()
 }

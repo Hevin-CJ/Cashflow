@@ -7,6 +7,7 @@ import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.GetTransactionsUseCase
+import com.hevincj.cashflow.domain.usecase.DeleteTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
 import com.hevincj.cashflow.ui.screen.state.BalanceRange
 import com.hevincj.cashflow.utils.NetworkMonitor
@@ -44,6 +45,9 @@ class HomeViewModelTest {
     lateinit var addTransactionUseCase: AddTransactionUseCase
 
     @Mock
+    lateinit var deleteTransactionUseCase: DeleteTransactionUseCase
+
+    @Mock
     lateinit var repository: TransactionRepository
 
     @Mock
@@ -54,6 +58,9 @@ class HomeViewModelTest {
 
     @Mock
     lateinit var processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
+
+    @Mock
+    lateinit var authRepository: com.hevincj.cashflow.domain.repository.AuthRepository
 
     private lateinit var viewModel: HomeViewModel
 
@@ -87,6 +94,7 @@ class HomeViewModelTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
+        HomeViewModel.testDispatcherOverride = mainDispatcherRule.testDispatcher
         whenever(getTransactionsUseCase.invoke()).thenReturn(flowOf(sampleTransactions))
         whenever(networkMonitor.isConnected).thenReturn(flowOf(true))
         whenever(budgetRepository.getBudgetsForMonth(any(), any())).thenReturn(flowOf(emptyList()))
@@ -96,15 +104,22 @@ class HomeViewModelTest {
         }
     }
 
+    @org.junit.After
+    fun tearDown() {
+        HomeViewModel.testDispatcherOverride = null
+    }
+
     @Test
     fun testInitializationLoadsTransactionsAndCalculatesTotals() = runTest {
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         advanceUntilIdle()
 
@@ -121,10 +136,12 @@ class HomeViewModelTest {
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         advanceUntilIdle()
         
@@ -143,10 +160,12 @@ class HomeViewModelTest {
         val localViewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         
         advanceUntilIdle()
@@ -163,10 +182,12 @@ class HomeViewModelTest {
         val localViewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         
         advanceUntilIdle()
@@ -189,10 +210,12 @@ class HomeViewModelTest {
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         viewModel.refreshSync(force = true)
         
@@ -212,10 +235,12 @@ class HomeViewModelTest {
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         // Trigger initial sync which fails
         viewModel.refreshSync(force = true)
@@ -249,10 +274,12 @@ class HomeViewModelTest {
         viewModel = HomeViewModel(
             getTransactionsUseCase,
             addTransactionUseCase,
+            deleteTransactionUseCase,
             repository,
             networkMonitor,
             budgetRepository,
-            processRecurringExpensesUseCase
+            processRecurringExpensesUseCase,
+            authRepository
         ).apply { defaultDispatcher = mainDispatcherRule.testDispatcher }
         
         // Start collecting filteredTransactions in a background coroutine to activate the flow

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import com.hevincj.cashflow.data.local.TokenManager
 import com.hevincj.cashflow.data.remote.api.AuthApi
+import com.hevincj.cashflow.data.remote.api.UserApi
 import com.hevincj.cashflow.data.remote.api.AuthInterceptor
 import com.hevincj.cashflow.data.remote.api.SignatureInterceptor
 import com.hevincj.cashflow.data.remote.api.TransactionApi
@@ -61,23 +62,28 @@ object NetworkModule {
             val request = chain.request()
             var attempt = 0
             var delay = 1000L
-            var lastException: IOException? = null
+            var lastException: java.io.IOException? = null
 
             while (attempt < 3) {
+                var response: okhttp3.Response? = null
                 try {
-                    val response = chain.proceed(request)
+                    response = chain.proceed(request)
                     if (response.isSuccessful || response.code < 500) {
                         return@Interceptor response
+                    } else {
+                        response.close()
                     }
-                } catch (e: IOException) {
+                } catch (e: java.io.IOException) {
+                    android.util.Log.e("NetworkModule", "Retry attempt $attempt failed: ${e.message}", e)
                     lastException = e
+                    response?.close()
                 }
                 attempt++
                 if (attempt >= 3) break
                 SystemClock.sleep(delay)
                 delay *= 2
             }
-            throw lastException ?: IOException("Network processing failed after 3 attempts")
+            throw lastException ?: java.io.IOException("Network processing failed after 3 attempts")
         }
 
         val certificatePinner = CertificatePinner.Builder()
@@ -125,6 +131,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideUserApi(retrofit: Retrofit): UserApi {
+        return retrofit.create(UserApi::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideTransactionApi(retrofit: Retrofit): TransactionApi {
         return retrofit.create(TransactionApi::class.java)
     }
@@ -151,5 +163,15 @@ object NetworkModule {
     @Singleton
     fun provideBudgetApi(retrofit: Retrofit): BudgetApi {
         return retrofit.create(BudgetApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideExchangeApi(): com.hevincj.cashflow.data.remote.api.ExchangeApi {
+        return retrofit2.Retrofit.Builder()
+            .baseUrl("https://api.frankfurter.app/")
+            .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+            .build()
+            .create(com.hevincj.cashflow.data.remote.api.ExchangeApi::class.java)
     }
 }

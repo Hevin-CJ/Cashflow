@@ -9,12 +9,14 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 class ProcessRecurringExpensesUseCase @Inject constructor(
     private val recurringRepository: RecurringExpenseRepository,
     private val transactionRepository: TransactionRepository
 ) {
-    suspend operator fun invoke() {
+    suspend operator fun invoke() = withContext(Dispatchers.Default) {
         val zoneId = ZoneId.systemDefault()
         val currentTime = System.currentTimeMillis()
         val currentLocalDate = Instant.ofEpochMilli(currentTime)

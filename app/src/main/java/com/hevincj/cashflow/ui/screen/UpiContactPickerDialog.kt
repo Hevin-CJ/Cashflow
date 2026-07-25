@@ -187,7 +187,7 @@ fun UpiContactPickerDialog(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(filteredContacts, key = { it.phoneNumber }) { contact ->
+                        items(filteredContacts, key = { "${it.name}::${it.phoneNumber}" }) { contact ->
                             ContactRow(
                                 contact = contact,
                                 onClick = {
@@ -284,14 +284,5 @@ private fun getPhoneContacts(context: Context): List<ContactInfo> {
     } catch (e: Exception) {
         e.printStackTrace()
     }
-    val distinct = contactsList.distinctBy { it.phoneNumber }
-    if (distinct.isEmpty()) {
-        return listOf(
-            ContactInfo("Alex Mercer", "+91 98765 43210"),
-            ContactInfo("Bruce Wayne", "+91 88888 88888"),
-            ContactInfo("Clark Kent", "+91 77777 77777"),
-            ContactInfo("Diana Prince", "+91 66666 66666")
-        )
-    }
-    return distinct
+    return contactsList.distinctBy { it.phoneNumber }
 }

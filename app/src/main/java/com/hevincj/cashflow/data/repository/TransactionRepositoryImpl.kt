@@ -15,13 +15,18 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.hevincj.cashflow.widget.BalanceWidget
+import androidx.glance.appwidget.updateAll
 
 class TransactionRepositoryImpl @Inject constructor(
     private val dao: TransactionDao,
     private val api: TransactionApi,
     private val syncScheduler: TransactionSyncScheduler,
     private val pendingDeleteManager: PendingDeleteManager,
-    private val syncManager: TransactionSyncManager
+    private val syncManager: TransactionSyncManager,
+    @ApplicationContext private val context: Context
 ) : TransactionRepository {
 
     override fun getAllTransactions(): Flow<List<Transaction>> {
@@ -157,6 +162,11 @@ class TransactionRepositoryImpl @Inject constructor(
 
         val localId = dao.insertTransaction(entity)
         syncScheduler.scheduleUpsertSync(localId.toInt())
+        try {
+            BalanceWidget().updateAll(context)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override suspend fun updateTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
@@ -192,6 +202,11 @@ class TransactionRepositoryImpl @Inject constructor(
 
         val localId = dao.insertTransaction(entity)
         syncScheduler.scheduleUpsertSync(localId.toInt())
+        try {
+            BalanceWidget().updateAll(context)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override suspend fun deleteTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
@@ -212,6 +227,11 @@ class TransactionRepositoryImpl @Inject constructor(
         if (serverId != null) {
             pendingDeleteManager.addPendingDeletion(serverId)
             syncScheduler.scheduleDeleteSync(serverId)
+        }
+        try {
+            BalanceWidget().updateAll(context)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

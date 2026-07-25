@@ -25,20 +25,39 @@ class RegisterUseCaseTest {
     }
 
     @Test
-    fun testRegisterDelegatesToRepositorySuccess() = runTest {
-        whenever(repository.register("user", "pass")).thenReturn(Result.success(Unit))
+    fun testRegisterInitiateDelegatesToRepositorySuccess() = runTest {
+        whenever(repository.initiateRegister("user", "pass", "John", "Doe", "1234567890")).thenReturn(Result.success(Unit))
 
-        val result = registerUseCase("user", "pass")
+        val result = registerUseCase.initiate("user", "pass", "John", "Doe", "1234567890")
 
         assertEquals(Result.success(Unit), result)
     }
 
     @Test
-    fun testRegisterDelegatesToRepositoryFailure() = runTest {
+    fun testRegisterInitiateDelegatesToRepositoryFailure() = runTest {
         val exception = Exception("Username already exists")
-        whenever(repository.register("user", "pass")).thenReturn(Result.failure(exception))
+        whenever(repository.initiateRegister("user", "pass", "John", "Doe", "1234567890")).thenReturn(Result.failure(exception))
 
-        val result = registerUseCase("user", "pass")
+        val result = registerUseCase.initiate("user", "pass", "John", "Doe", "1234567890")
+
+        assertEquals(Result.failure<Unit>(exception), result)
+    }
+
+    @Test
+    fun testRegisterVerifyDelegatesToRepositorySuccess() = runTest {
+        whenever(repository.verifyRegister("user", "123456")).thenReturn(Result.success(Unit))
+
+        val result = registerUseCase.verify("user", "123456")
+
+        assertEquals(Result.success(Unit), result)
+    }
+
+    @Test
+    fun testRegisterVerifyDelegatesToRepositoryFailure() = runTest {
+        val exception = Exception("Invalid OTP")
+        whenever(repository.verifyRegister("user", "123456")).thenReturn(Result.failure(exception))
+
+        val result = registerUseCase.verify("user", "123456")
 
         assertEquals(Result.failure<Unit>(exception), result)
     }

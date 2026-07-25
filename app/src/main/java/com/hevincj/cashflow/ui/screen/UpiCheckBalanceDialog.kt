@@ -1,19 +1,21 @@
 package com.hevincj.cashflow.ui.screen
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
-import androidx.compose.animation.*
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Backspace
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,443 +24,336 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.collections.immutable.persistentListOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.hevincj.cashflow.domain.models.CreditCard
-import com.hevincj.cashflow.ui.screen.viewmodel.CardsViewModel
+import androidx.core.graphics.drawable.toBitmap
 import com.hevincj.cashflow.ui.theme.CardBackground
 import com.hevincj.cashflow.ui.theme.TextPrimary
 import com.hevincj.cashflow.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ─── Data class for discovered UPI apps ──────────────────────────────────────
+
+private data class UpiAppInfo(
+    val name: String,
+    val packageName: String,
+    val icon: ImageBitmap?
+)
+
+// ─── Known UPI apps with their deep-link balance check URIs ──────────────────
+
+private val knownUpiApps = listOf(
+    Triple("Google Pay",  "com.google.android.apps.nbu.paisa.user", "upi://pay"),
+    Triple("PhonePe",     "com.phonepe.app",                        "phonepe://main"),
+    Triple("Paytm",       "net.one97.paytm",                        "paytmmp://balance"),
+    Triple("BHIM",        "in.org.npci.upiapp",                     "upi://pay"),
+    Triple("Amazon Pay",  "in.amazon.mShop.android.shopping",       "amzn://apps/android"),
+    Triple("MobiKwik",    "com.mobikwik_new",                       "mobikwik://main"),
+    Triple("FreeCharge",  "com.freecharge.android",                 "freecharge://main"),
+    Triple("Airtel Money","com.myairtelapp",                        "airtel://main"),
+    Triple("SBI YONO",    "com.sbi.lotusintouch",                   null),
+    Triple("HDFC MobileBanking", "com.snapwork.HDFC",              null),
+    Triple("ICICI iMobile","com.csam.icici.bank.imobile",          null),
+    Triple("Axis Mobile", "com.axis.mobile",                        null)
+)
+
+// ─── Main Dialog ──────────────────────────────────────────────────────────────
+
 @Composable
 fun UpiCheckBalanceDialog(
-    onDismissRequest: () -> Unit,
-    cardsViewModel: CardsViewModel = hiltViewModel()
+    onDismissRequest: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    val cardsState by cardsViewModel.state.collectAsState()
 
-    val presetAccounts = remember {
-        persistentListOf(
-            CreditCard("", 48250.00, "•••• 1234", "SBI Savings", persistentListOf(0xFF1976D2, 0xFF0D47A1)),
-            CreditCard("", 124800.50, "•••• 5678", "HDFC Savings", persistentListOf(0xFF2C3E50, 0xFF34495E)),
-            CreditCard("", 15200.75, "•••• 9012", "ICICI Salary", persistentListOf(0xFFD84315, 0xFFBF360C))
-        )
+    // Discover installed UPI / banking apps
+    val installedApps: List<UpiAppInfo> = remember {
+        val pm = context.packageManager
+        knownUpiApps.mapNotNull { (name, pkg, _) ->
+            try {
+                val appInfo = pm.getApplicationInfo(pkg, 0)
+                val drawable = pm.getApplicationIcon(appInfo)
+                val bitmap = try { drawable.toBitmap().asImageBitmap() } catch (e: Exception) { null }
+                UpiAppInfo(name, pkg, bitmap)
+            } catch (e: PackageManager.NameNotFoundException) {
+                null // App not installed — skip
+            }
+        }
     }
-
-    val accounts = remember(cardsState.cards) {
-        if (cardsState.cards.isNotEmpty()) cardsState.cards else presetAccounts
-    }
-
-    var selectedAccount by remember { mutableStateOf(accounts.first()) }
-    var currentScreen by remember { mutableStateOf(0) } // 0 = Select Account, 1 = Enter PIN, 2 = Loading, 3 = Show Balance
-
-    var pinDigits by remember { mutableStateOf("") }
-    val maxPinLength = 4
 
     Dialog(
-        onDismissRequest = { if (currentScreen != 2) onDismissRequest() },
+        onDismissRequest = onDismissRequest,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = currentScreen != 2,
-            dismissOnClickOutside = currentScreen != 2
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
         )
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth(0.92f)
                 .wrapContentHeight()
                 .clip(RoundedCornerShape(24.dp)),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header
-                if (currentScreen != 2 && currentScreen != 3) {
-                    Row(
+                // ── Header ────────────────────────────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Check Balance",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    IconButton(onClick = onDismissRequest) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color.Gray
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Open a UPI or banking app on your phone to check your balance.",
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (installedApps.isEmpty()) {
+                    // ── No apps found ────────────────────────────────────
+                    EmptyAppsPlaceholder()
+                } else {
+                    // ── App list ─────────────────────────────────────────
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .align(Alignment.TopCenter),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = if (currentScreen == 0) "Check Bank Balance" else "Enter UPI PIN",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        IconButton(onClick = onDismissRequest) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close",
-                                tint = Color.Gray
-                            )
+                        items(installedApps) { app ->
+                            AppLaunchRow(app = app) {
+                                // Try deep link first, then plain launcher intent
+                                val deepLinkUri = knownUpiApps
+                                    .firstOrNull { it.second == app.packageName }
+                                    ?.third
+
+                                var launched = false
+
+                                if (deepLinkUri != null) {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLinkUri)).apply {
+                                            setPackage(app.packageName)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                        launched = true
+                                    } catch (e: Exception) {
+                                        // Deep link failed — fall through to launcher
+                                    }
+                                }
+
+                                if (!launched) {
+                                    try {
+                                        val launchIntent = context.packageManager
+                                            .getLaunchIntentForPackage(app.packageName)
+                                            ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                        if (launchIntent != null) context.startActivity(launchIntent)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+
+                                onDismissRequest()
+                            }
                         }
                     }
                 }
 
-                Column(
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── USSD fallback option ──────────────────────────────────
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            // NPCI USSD balance check — works on any SIM without internet
+                            val ussdCode = "*99#"
+                            context.startActivity(
+                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(ussdCode)}"))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        onDismissRequest()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = if (currentScreen == 2 || currentScreen == 3) 0.dp else 48.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = Brush.horizontalGradient(
+                            listOf(Color.Gray.copy(alpha = 0.3f), Color.Gray.copy(alpha = 0.3f))
+                        )
+                    )
                 ) {
-                    when (currentScreen) {
-                        0 -> {
-                            // Screen 0: Select Account
-                            Text(
-                                text = "Choose a bank account or card to check balance lively.",
-                                fontSize = 13.sp,
-                                color = TextSecondary,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 12.dp)
-                            )
-
-                            LazyRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp)
-                            ) {
-                                items(accounts) { account ->
-                                    val isSelected = selectedAccount == account
-                                    val brush = Brush.linearGradient(
-                                        colors = account.gradientColors.map { Color(it) }
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .size(width = 160.dp, height = 96.dp)
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(brush)
-                                            .border(
-                                                width = if (isSelected) 3.dp else 0.dp,
-                                                color = if (isSelected) Color.White else Color.Transparent,
-                                                shape = RoundedCornerShape(16.dp)
-                                            )
-                                            .clickable { selectedAccount = account }
-                                            .padding(12.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.fillMaxSize(),
-                                            verticalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = account.cardHolder,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                            Text(
-                                                text = account.cardNumber,
-                                                color = Color.White.copy(alpha = 0.8f),
-                                                fontWeight = FontWeight.Medium,
-                                                fontSize = 12.sp
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = { currentScreen = 1 },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-                            ) {
-                                Text("Proceed to UPI PIN", fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        1 -> {
-                            // Screen 1: Enter PIN
-                            Text(
-                                text = "Querying ${selectedAccount.cardHolder} (${selectedAccount.cardNumber.takeLast(4)})",
-                                fontSize = 13.sp,
-                                color = TextSecondary,
-                                fontWeight = FontWeight.Medium
-                            )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            // PIN dots display
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                repeat(maxPinLength) { idx ->
-                                    val isFilled = idx < pinDigits.length
-                                    Box(
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (isFilled) Color(0xFF9C27B0)
-                                                else Color.Gray.copy(alpha = 0.3f)
-                                            )
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(32.dp))
-
-                            // Custom secure PIN number pad
-                            UpiPinPad(
-                                onDigitClick = { digit ->
-                                    if (pinDigits.length < maxPinLength) {
-                                        pinDigits += digit
-                                    }
-                                },
-                                onDeleteClick = {
-                                    if (pinDigits.isNotEmpty()) {
-                                        pinDigits = pinDigits.dropLast(1)
-                                    }
-                                },
-                                onSubmitClick = {
-                                    if (pinDigits.length == maxPinLength) {
-                                        // Launch USSD balance enquiry — ACTION_DIAL requires no permission
-                                        // *99*1*2# is the NPCI USSD code for balance enquiry
-                                        val ussdCode = "*99*1*2#"
-                                        val dialIntent = Intent(
-                                            Intent.ACTION_DIAL,
-                                            Uri.parse("tel:${Uri.encode(ussdCode)}")
-                                        )
-                                        try {
-                                            context.startActivity(dialIntent)
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                        onDismissRequest()
-                                    }
-                                },
-                                isSubmitEnabled = pinDigits.length == maxPinLength
-                            )
-                        }
-
-                        2 -> {
-                            // Screen 2: Loading State
-                            Box(
-                                modifier = Modifier
-                                    .height(250.dp)
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        color = Color(0xFF9C27B0),
-                                        modifier = Modifier.size(54.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                    Text(
-                                        text = "Connecting securely to bank...",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "Validating credentials and retrieving balance",
-                                        fontSize = 12.sp,
-                                        color = TextSecondary,
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        3 -> {
-                            // Screen 3: Show balance lively!
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFE8F5E9)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.AccountBalance,
-                                            contentDescription = null,
-                                            tint = Color(0xFF2E7D32),
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text(
-                                        text = selectedAccount.cardHolder,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-
-                                    Text(
-                                        text = "Account: ${selectedAccount.cardNumber}",
-                                        fontSize = 13.sp,
-                                        color = TextSecondary,
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
-
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    // Glowing lively balance display card
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    colors = listOf(
-                                                        Color(0xFFE8F5E9).copy(alpha = 0.8f),
-                                                        Color(0xFFC8E6C9).copy(alpha = 0.5f)
-                                                    )
-                                                )
-                                            )
-                                            .border(1.dp, Color(0xFFA5D6A7), RoundedCornerShape(16.dp))
-                                            .padding(20.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(
-                                                text = "Available Balance",
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF2E7D32),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = String.format("₹%,.2f", selectedAccount.balance),
-                                                fontSize = 28.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = Color(0xFF1B5E20)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(28.dp))
-
-                                    Button(
-                                        onClick = onDismissRequest,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(50.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-                                    ) {
-                                        Text("Done", fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.Phone,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Use USSD (*99#) — No Internet needed",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
     }
 }
 
+// ─── Single app row ───────────────────────────────────────────────────────────
+
 @Composable
-fun UpiPinPad(
-    onDigitClick: (String) -> Unit,
-    onDeleteClick: () -> Unit,
-    onSubmitClick: () -> Unit,
-    isSubmitEnabled: Boolean
-) {
-    val keys = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
-        listOf("delete", "0", "submit")
+private fun AppLaunchRow(app: UpiAppInfo, onClick: () -> Unit) {
+    var isPressed by remember { mutableStateOf(false) }
+    val bgColor by animateColorAsState(
+        targetValue = if (isPressed) Color.White.copy(alpha = 0.08f) else Color.Transparent,
+        animationSpec = tween(150),
+        label = "row_bg"
     )
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgColor)
+            .border(
+                1.dp,
+                Color.White.copy(alpha = 0.07f),
+                RoundedCornerShape(14.dp)
+            )
+            .clickable {
+                isPressed = true
+                onClick()
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        keys.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // App icon
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.06f)),
+                contentAlignment = Alignment.Center
             ) {
-                row.forEach { key ->
-                    Box(
+                if (app.icon != null) {
+                    Image(
+                        bitmap = app.icon,
+                        contentDescription = app.name,
                         modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                when (key) {
-                                    "submit" -> if (isSubmitEnabled) Color(0xFF4CAF50) else Color.Gray.copy(alpha = 0.1f)
-                                    "delete" -> Color.Gray.copy(alpha = 0.1f)
-                                    else -> Color.White.copy(alpha = 0.05f)
-                                }
-                            )
-                            .clickable(
-                                enabled = when (key) {
-                                    "submit" -> isSubmitEnabled
-                                    else -> true
-                                }
-                            ) {
-                                when (key) {
-                                    "submit" -> onSubmitClick()
-                                    "delete" -> onDeleteClick()
-                                    else -> onDigitClick(key)
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        when (key) {
-                            "submit" -> Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = "Submit",
-                                tint = if (isSubmitEnabled) Color.White else Color.Gray
-                            )
-                            "delete" -> Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Backspace,
-                                contentDescription = "Delete",
-                                tint = TextPrimary
-                            )
-                            else -> Text(
-                                text = key,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        }
-                    }
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.AccountBalance,
+                        contentDescription = app.name,
+                        tint = Color(0xFF9C27B0),
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
+
+            // App name
+            Text(
+                text = app.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
         }
+
+        // Open arrow
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+            contentDescription = "Open app",
+            tint = Color(0xFF9C27B0),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun EmptyAppsPlaceholder() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF9C27B0).copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AccountBalance,
+                contentDescription = null,
+                tint = Color(0xFF9C27B0),
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No UPI apps found",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Install GPay, PhonePe, or Paytm to check balance from here. You can still use the USSD option below.",
+            fontSize = 13.sp,
+            color = TextSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
     }
 }

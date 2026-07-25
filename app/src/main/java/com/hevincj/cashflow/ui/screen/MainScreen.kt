@@ -42,6 +42,9 @@ import com.hevincj.cashflow.ui.theme.BottomBarIconUnselectedColor
 import com.hevincj.cashflow.ui.theme.CardBackground
 import com.hevincj.cashflow.ui.theme.PrimaryGradient
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import com.hevincj.cashflow.MainActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.CardsViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.HomeViewModel
@@ -66,6 +69,15 @@ fun MainScreen(
     val cardsViewModel = LocalCardsViewModel.current ?: hiltViewModel()
     val profileViewModel = LocalProfileViewModel.current ?: hiltViewModel()
     val scanViewModel = LocalScanViewModel.current ?: hiltViewModel()
+
+    val context = LocalContext.current
+    val activity = context as? MainActivity
+    LaunchedEffect(activity?.shouldNavigateToAddTransaction) {
+        if (activity?.shouldNavigateToAddTransaction == true) {
+            rootNavController.navigate("add_transaction")
+            activity.consumeAddTransactionAction()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

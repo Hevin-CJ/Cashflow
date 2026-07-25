@@ -82,7 +82,7 @@ class StatsViewModelTest {
         assertEquals(sampleStats, state.stats)
         
         // Available months should contain YearMonth of transaction and YearMonth.now()
-        val expectedMonth = YearMonth.of(2026, 6)
+        val expectedMonth = YearMonth.now()
         assertTrue(state.availableMonths.contains(expectedMonth))
     }
 

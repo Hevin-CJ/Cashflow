@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import android.content.Context
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mock
@@ -45,12 +46,15 @@ class TransactionApiUnitTest {
     @Mock
     lateinit var recurringExpenseDao: RecurringExpenseDao
 
+    @Mock
+    lateinit var context: Context
+
     private lateinit var repository: TransactionRepositoryImpl
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        repository = TransactionRepositoryImpl(dao, transactionApi, syncScheduler, pendingDeleteManager, syncManager)
+        repository = TransactionRepositoryImpl(dao, transactionApi, syncScheduler, pendingDeleteManager, syncManager, context)
     }
 
     @Test

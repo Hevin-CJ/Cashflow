@@ -5,6 +5,8 @@ import com.hevincj.cashflow.domain.repository.AuthRepository
 import com.hevincj.cashflow.data.local.ThemeManager
 import com.hevincj.cashflow.data.local.ThemeMode
 import com.hevincj.cashflow.domain.repository.TransactionRepository
+import com.hevincj.cashflow.domain.repository.UserRepository
+import com.hevincj.cashflow.domain.models.UserProfile
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -33,13 +35,21 @@ class ProfileViewModelTest {
     @Mock
     lateinit var transactionRepository: TransactionRepository
 
+    @Mock
+    lateinit var userRepository: UserRepository
+
     private lateinit var viewModel: ProfileViewModel
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(themeManager.themeMode).thenReturn(MutableStateFlow(ThemeMode.SYSTEM))
-        viewModel = ProfileViewModel(authRepository, themeManager, transactionRepository)
+        kotlinx.coroutines.runBlocking {
+            whenever(userRepository.getUserProfile()).thenReturn(
+                Result.success(UserProfile("leslie@gmail.com", "Leslie", "Alexander", "123456", null))
+            )
+        }
+        viewModel = ProfileViewModel(authRepository, themeManager, transactionRepository, userRepository)
     }
 
     @Test

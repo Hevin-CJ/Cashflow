@@ -61,7 +61,7 @@ class LoginScreenTest {
         }
 
         composeTestRule.onNodeWithText("Login").performClick()
-        verify(viewModel).login()
+        verify(viewModel).initiateLogin()
     }
 
     @Test

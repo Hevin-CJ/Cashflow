@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.ShoppingBag
 import com.hevincj.cashflow.data.worker.TransactionSyncManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import android.content.Context
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -65,6 +66,9 @@ class TransactionRepositoryImplTest {
     @Mock
     lateinit var syncManager: TransactionSyncManager
 
+    @Mock
+    lateinit var context: Context
+
     private lateinit var repository: TransactionRepositoryImpl
 
     private val sampleIcon = Icons.Rounded.ShoppingBag
@@ -73,7 +77,7 @@ class TransactionRepositoryImplTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        repository = TransactionRepositoryImpl(dao, api, syncScheduler, pendingDeleteManager, syncManager)
+        repository = TransactionRepositoryImpl(dao, api, syncScheduler, pendingDeleteManager, syncManager, context)
     }
 
     private fun createDomainTransaction(

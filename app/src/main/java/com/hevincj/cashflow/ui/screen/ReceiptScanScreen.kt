@@ -58,7 +58,6 @@ fun ReceiptScanScreen(
     var imageBytes by remember { mutableStateOf<ByteArray?>(null) }
 
     val state by viewModel.state.collectAsState()
-    var tempApiKey by remember { mutableStateOf("") }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -153,46 +152,12 @@ fun ReceiptScanScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Optional test API Key input
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Testing Gemini API Key (Optional)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Provide a temporary key if GEMINI_API_KEY env variable is not configured.",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = tempApiKey,
-                        onValueChange = { tempApiKey = it },
-                        placeholder = { Text("Paste AI API Key here") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                }
-            }
-
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
                     val bytes = imageBytes ?: return@Button
-                    viewModel.analyzeReceipt(bytes, tempApiKey) { result ->
+                    viewModel.analyzeReceipt(bytes) { result ->
                         if (result != null) {
                             Toast.makeText(context, "Receipt analyzed successfully!", Toast.LENGTH_SHORT).show()
                             onNavigateToAddTransaction(

@@ -15,6 +15,7 @@ import com.hevincj.cashflow.ui.screen.viewmodel.ProfileViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.StatsViewModel
 import com.hevincj.cashflow.ui.screen.viewmodel.ScanViewModel
 import androidx.compose.runtime.CompositionLocalProvider
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -43,8 +44,8 @@ class MainScreenTest {
 
     // States
     private val homeStateFlow = MutableStateFlow(HomeUiState(isLoading = false))
-    private val statsStateFlow = MutableStateFlow(StatsUiState(stats = TransactionStats(0.0, 0.0, emptyList(), emptyList(), emptyList()), isLoading = false))
-    private val cardsStateFlow = MutableStateFlow(CardsUiState(cards = emptyList(), isLoading = false))
+    private val statsStateFlow = MutableStateFlow(StatsUiState(stats = TransactionStats(0.0, 0.0, persistentListOf(), persistentListOf(), persistentListOf()), isLoading = false))
+    private val cardsStateFlow = MutableStateFlow(CardsUiState(cards = persistentListOf(), isLoading = false))
     private val profileStateFlow = MutableStateFlow(ProfileUiState(isLoggedOut = false))
 
 

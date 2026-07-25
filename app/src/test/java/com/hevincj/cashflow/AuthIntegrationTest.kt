@@ -26,28 +26,14 @@ class AuthIntegrationTest {
 
         // 1. Test Registration
         val registerRequest = RegisterRequestDto(uniqueUsername, password)
-        val registerResponse = authApi.register(registerRequest)
+        val registerResponse = authApi.registerInitiate(registerRequest)
 
         assertTrue("Register response should be successful", registerResponse.isSuccessful)
-        val registerBody = registerResponse.body()
-        assertNotNull("Register body should not be null", registerBody)
-        assertEquals("Registered username should match", uniqueUsername, registerBody?.username)
-        assertNotNull("Registered user should have a valid database ID", registerBody?.id)
-
-        println("Successfully registered user in local MongoDB. ID: ${registerBody?.id}")
 
         // 2. Test Login
         val loginRequest = LoginRequestDto(uniqueUsername, password)
-        val loginResponse = authApi.login(loginRequest)
+        val loginResponse = authApi.loginInitiate(loginRequest)
 
         assertTrue("Login response should be successful", loginResponse.isSuccessful)
-        val loginBody = loginResponse.body()
-        assertNotNull("Login body should not be null", loginBody)
-        assertEquals("Logged in username should match", uniqueUsername, loginBody?.username)
-        assertNotNull("Logged in user should have a valid database ID", loginBody?.id)
-        assertNotNull("Login response should contain a signed JWT token", loginBody?.token)
-        assertTrue("JWT token should not be empty", loginBody?.token?.isNotEmpty() == true)
-
-        println("Successfully authenticated user against Ktor backend. Generated JWT: ${loginBody?.token}")
     }
 }

@@ -49,10 +49,9 @@ fun LoginScreen(
 
     LaunchedEffect(uiState.authState) {
         when (uiState.authState) {
-            is AuthState.LoginSuccess -> {
-                navController.navigate("main") {
-                    popUpTo("login") { inclusive = true }
-                }
+            is AuthState.OtpSentLogin -> {
+                navController.navigate("otp_verification/login")
+                viewModel.resetState()
             }
             is AuthState.Error -> {
                 Toast.makeText(context, (uiState.authState as AuthState.Error).message, Toast.LENGTH_SHORT).show()
@@ -91,7 +90,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = uiState.username,
                 onValueChange = viewModel::onUsernameChange,
-                label = { Text("Username") },
+                label = { Text("Email") },
                 leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -129,7 +128,7 @@ fun LoginScreen(
                 keyboardActions = KeyboardActions(
                     onDone = { 
                         focusManager.clearFocus()
-                        viewModel.login()
+                        viewModel.initiateLogin()
                     }
                 )
             )
@@ -139,7 +138,7 @@ fun LoginScreen(
             Button(
                 onClick = { 
                     focusManager.clearFocus()
-                    viewModel.login() 
+                    viewModel.initiateLogin() 
                 },
                 modifier = Modifier
                     .fillMaxWidth()

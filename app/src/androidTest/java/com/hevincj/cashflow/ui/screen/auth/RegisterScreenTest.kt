@@ -61,7 +61,7 @@ class RegisterScreenTest {
         }
 
         composeTestRule.onNodeWithText("Register").performClick()
-        verify(viewModel).register()
+        verify(viewModel).initiateRegister()
     }
 
     @Test

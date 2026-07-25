@@ -6,6 +6,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import com.hevincj.cashflow.domain.models.TransactionStats
 import com.hevincj.cashflow.ui.screen.state.StatsUiState
 import com.hevincj.cashflow.ui.screen.viewmodel.StatsViewModel
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -26,15 +28,15 @@ class StatisticsScreenTest {
         val dummyStats = TransactionStats(
             totalIncome = 4500.0,
             totalExpenses = 1200.0,
-            weeklyIncome = listOf(1000f, 1500f, 800f, 1200f),
-            weeklyExpenses = listOf(300f, 400f, 200f, 300f),
-            recentTransactions = emptyList()
+            weeklyIncome = persistentListOf(1000f, 1500f, 800f, 1200f),
+            weeklyExpenses = persistentListOf(300f, 400f, 200f, 300f),
+            recentTransactions = persistentListOf()
         )
         val selectedMonth = YearMonth.of(2026, 6)
         stateFlow.value = StatsUiState(
             stats = dummyStats,
             selectedMonth = selectedMonth,
-            availableMonths = listOf(selectedMonth),
+            availableMonths = persistentListOf(selectedMonth),
             isLoading = false
         )
         whenever(viewModel.state).thenReturn(stateFlow)

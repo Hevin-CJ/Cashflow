@@ -1,0 +1,8 @@
+com.hevincj.cashflow.baselineprofile-pngs-0 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/build/generated/res/pngs/benchmarkRelease
+com.hevincj.cashflow.baselineprofile-updated_navigation_xml-1 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/build/generated/updated_navigation_xml/benchmarkRelease
+com.hevincj.cashflow.baselineprofile-packageBenchmarkReleaseResources-2 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/build/intermediates/incremental/benchmarkRelease/packageBenchmarkReleaseResources/merged.dir
+com.hevincj.cashflow.baselineprofile-packageBenchmarkReleaseResources-3 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/build/intermediates/incremental/benchmarkRelease/packageBenchmarkReleaseResources/stripped.dir
+com.hevincj.cashflow.baselineprofile-benchmarkRelease-4 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/build/intermediates/merged_res/benchmarkRelease/mergeBenchmarkReleaseResources
+com.hevincj.cashflow.baselineprofile-benchmarkRelease-5 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/src/benchmarkRelease/res
+com.hevincj.cashflow.baselineprofile-main-6 /Users/hevincj/AndroidStudioProjects/CashFlow/baselineprofile/src/main/res
+gradleHome-0 /Users/hevincj/.gradle
