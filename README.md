@@ -49,7 +49,7 @@ The application follows **Clean Architecture** principles separated into 3 core 
 ┌────────────────────────────────────────────────────────────────────────┐
 │                     KTOR BACKEND (GOOGLE CLOUD RUN)                    │
 │                                                                        │
-│   Netty Engine  ──▶  Ktor Routes  ──▶  Koin DI  ──▶  KMongo Coroutines  │
+│   Netty Engine  ──▶  Ktor Routes  ──▶  Koin DI  ──▶  KMongo Coroutines │
 └───────────────────────────────────────────────────┬────────────────────┘
                                                     │ Mongo URI
                                                     ▼
