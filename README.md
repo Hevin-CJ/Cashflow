@@ -9,6 +9,13 @@
 
 **CashFlow** is a modern, high-performance, offline-first personal finance and expense tracking Android application. Built with 100% **Jetpack Compose**, **Clean Architecture**, and **MVVM**, CashFlow enables users to manage transactions, budgets, credit cards, recurring subscriptions, scan paper receipts with AI/ML, and seamlessly sync data with a custom **Ktor + MongoDB** backend server.
 
+<img width="1080" height="2424" alt="Screenshot_20260812_224835" src="https://github.com/user-attachments/assets/fe11c4f0-4d18-4d3b-994a-984a20f33fb7" />
+<img width="1080" height="2424" alt="Screenshot_20260812_224826" src="https://github.com/user-attachments/assets/cc4f5d1f-4555-4488-b8ad-5e34f88ced36" />
+<img width="1080" height="2424" alt="Screenshot_20260812_224814" src="https://github.com/user-attachments/assets/18088245-aa1c-4c66-850b-96c6193d50db" />
+<img width="1080" height="2424" alt="Screenshot_20260812_224807" src="https://github.com/user-attachments/assets/1ee684b9-6bab-41b4-8ce4-f206f2f222a8" />
+<img width="1080" height="2424" alt="Screenshot_20260812_224758" src="https://github.com/user-attachments/assets/f5dd75ff-b253-4f99-85f5-a6b1e878c723" />
+<img width="1080" height="2424" alt="Screenshot_20260812_224748" src="https://github.com/user-attachments/assets/bc4d6824-6769-41ff-82be-735405ec8232" />
+
 ---
 
 ## ✨ Features
