@@ -37,6 +37,9 @@ class SubscriptionManagerViewModelTest {
     lateinit var deleteRecurringExpenseUseCase: DeleteRecurringExpenseUseCase
 
     @Mock
+    lateinit var addTransactionUseCase: com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
+
+    @Mock
     lateinit var processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
 
     @Mock
@@ -59,6 +62,7 @@ class SubscriptionManagerViewModelTest {
             getRecurringExpensesUseCase,
             addRecurringExpenseUseCase,
             deleteRecurringExpenseUseCase,
+            addTransactionUseCase,
             repository,
             scheduler,
             processRecurringExpensesUseCase
@@ -75,6 +79,7 @@ class SubscriptionManagerViewModelTest {
             getRecurringExpensesUseCase,
             addRecurringExpenseUseCase,
             deleteRecurringExpenseUseCase,
+            addTransactionUseCase,
             repository,
             scheduler,
             processRecurringExpensesUseCase

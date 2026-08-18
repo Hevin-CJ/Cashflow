@@ -361,7 +361,7 @@ fun ProfileScreen(
             updateInfo = updateInfo,
             downloadStatus = uiState.downloadStatus,
             onDismiss = { viewModel.dismissUpdateDialog() },
-            onDownloadClick = { viewModel.startDownload(updateInfo.downloadUrl, updateInfo.latestVersion) },
+            onDownloadClick = { viewModel.startDownload(updateInfo) },
             onInstallClick = { apkFile ->
                 if (!com.hevincj.cashflow.utils.ApkInstaller.canRequestPackageInstalls(context)) {
                     com.hevincj.cashflow.utils.ApkInstaller.openInstallPermissionSettings(context)

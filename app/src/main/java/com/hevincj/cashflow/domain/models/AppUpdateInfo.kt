@@ -7,5 +7,10 @@ data class AppUpdateInfo(
     val releaseTitle: String,
     val releaseNotes: String,
     val downloadUrl: String,
-    val apkSize: Long
-)
+    val apkSize: Long,
+    val patchDownloadUrl: String? = null,
+    val patchSize: Long? = null
+) {
+    val isDeltaPatch: Boolean
+        get() = !patchDownloadUrl.isNullOrBlank()
+}

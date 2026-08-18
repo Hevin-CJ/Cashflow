@@ -57,12 +57,25 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun startDownload(downloadUrl: String, versionName: String) {
+    fun startDownload(updateInfo: com.hevincj.cashflow.domain.models.AppUpdateInfo) {
         viewModelScope.launch {
-            apkDownloader.downloadApk(downloadUrl, versionName).collect { status ->
+            apkDownloader.downloadUpdate(updateInfo).collect { status ->
                 _state.value = _state.value.copy(downloadStatus = status)
             }
         }
+    }
+
+    fun startDownload(downloadUrl: String, versionName: String) {
+        val currentInfo = _state.value.updateInfo ?: com.hevincj.cashflow.domain.models.AppUpdateInfo(
+            isUpdateAvailable = true,
+            latestVersion = versionName,
+            currentVersion = "",
+            releaseTitle = "",
+            releaseNotes = "",
+            downloadUrl = downloadUrl,
+            apkSize = 0L
+        )
+        startDownload(currentInfo)
     }
 
     fun dismissUpdateDialog() {

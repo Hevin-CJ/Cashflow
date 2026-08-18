@@ -34,12 +34,15 @@ class ScanViewModelTest {
     @Mock
     lateinit var transactionRepository: TransactionRepository
 
+    @Mock
+    lateinit var analyzeReceiptUseCase: com.hevincj.cashflow.domain.usecase.AnalyzeReceiptUseCase
+
     private lateinit var viewModel: ScanViewModel
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        viewModel = ScanViewModel(scanRepository, transactionRepository)
+        viewModel = ScanViewModel(scanRepository, transactionRepository, analyzeReceiptUseCase)
     }
 
     private fun scanBarcode(barcode: String) {

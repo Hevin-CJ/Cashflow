@@ -80,10 +80,44 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Generate Multi-Version Binary Delta Patches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y bsdiff
+          mkdir -p patches
+          mkdir -p prev_apks
+          CURRENT_TAG="${{ github.ref_name }}"
+          NEW_APK="CashFlow-${CURRENT_TAG}.apk"
+
+          # Query up to 10 past release tags (excluding current tag)
+          PAST_TAGS=$(gh release list --limit 15 --json tagName --jq '.[].tagName' 2>/dev/null | grep -v "^${CURRENT_TAG}$" | head -n 8 || true)
+          echo "Previous release tags to generate diffs for:"
+          echo "$PAST_TAGS"
+
+          for TAG in $PAST_TAGS; do
+            echo "Attempting to generate delta patch: $TAG -> $CURRENT_TAG"
+            PREV_DIR="prev_apks/$TAG"
+            mkdir -p "$PREV_DIR"
+            if gh release download "$TAG" --pattern "*.apk" --dir "$PREV_DIR" 2>/dev/null; then
+              PREV_APK=$(find "$PREV_DIR" -name "*.apk" | head -n 1)
+              if [ -n "$PREV_APK" ] && [ -f "$PREV_APK" ]; then
+                PATCH_NAME="patch-${TAG}-to-${CURRENT_TAG}.patch"
+                echo "Creating $PATCH_NAME..."
+                bsdiff "$PREV_APK" "$NEW_APK" "patches/$PATCH_NAME"
+                echo "Generated $PATCH_NAME ($(stat -c%s "patches/$PATCH_NAME") bytes)"
+              fi
+            else
+              echo "No APK found for tag $TAG, skipping."
+            fi
+          done
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: CashFlow ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.body }}
-          files: CashFlow-*.apk
+          files: |
+            CashFlow-*.apk
+            patches/*.patch

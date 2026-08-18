@@ -38,6 +38,12 @@ class ProfileViewModelTest {
     @Mock
     lateinit var userRepository: UserRepository
 
+    @Mock
+    lateinit var updateRepository: com.hevincj.cashflow.domain.repository.UpdateRepository
+
+    @Mock
+    lateinit var apkDownloader: com.hevincj.cashflow.utils.ApkDownloader
+
     private lateinit var viewModel: ProfileViewModel
 
     @Before
@@ -49,7 +55,14 @@ class ProfileViewModelTest {
                 Result.success(UserProfile("leslie@gmail.com", "Leslie", "Alexander", "123456", null))
             )
         }
-        viewModel = ProfileViewModel(authRepository, themeManager, transactionRepository, userRepository)
+        viewModel = ProfileViewModel(
+            authRepository,
+            themeManager,
+            transactionRepository,
+            userRepository,
+            updateRepository,
+            apkDownloader
+        )
     }
 
     @Test

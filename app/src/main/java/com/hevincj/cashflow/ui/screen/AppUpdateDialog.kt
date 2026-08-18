@@ -132,7 +132,22 @@ fun AppUpdateDialog(
                         )
                     }
 
-                    if (updateInfo.apkSize > 0) {
+                    if (updateInfo.isDeltaPatch && updateInfo.patchSize != null && updateInfo.patchSize > 0) {
+                        val sizeInMb = updateInfo.patchSize.toDouble() / (1024 * 1024)
+                        val df = DecimalFormat("#.#")
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = PositiveGreen.copy(alpha = if (isDark) 0.25f else 0.12f)
+                        ) {
+                            Text(
+                                text = "Patch: ${df.format(sizeInMb)} MB",
+                                color = PositiveGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else if (updateInfo.apkSize > 0) {
                         val sizeInMb = updateInfo.apkSize.toDouble() / (1024 * 1024)
                         val df = DecimalFormat("#.#")
                         Text(
@@ -201,7 +216,7 @@ fun AppUpdateDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${downloadStatus.progress.toInt()}% downloaded",
+                                    text = if (downloadStatus.isPatch) "${downloadStatus.progress.toInt()}% patch downloaded" else "${downloadStatus.progress.toInt()}% downloaded",
                                     fontSize = 12.sp,
                                     color = TextSecondary
                                 )
@@ -211,6 +226,28 @@ fun AppUpdateDialog(
                                     color = TextSecondary
                                 )
                             }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    is DownloadStatus.Patching -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = Color(0xFF635BFF),
+                                trackColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)
+                            )
+                            Text(
+                                text = downloadStatus.message,
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -233,11 +270,12 @@ fun AppUpdateDialog(
                 }
 
                 // Action Buttons
+                val isBusy = downloadStatus is DownloadStatus.Downloading || downloadStatus is DownloadStatus.Patching
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (downloadStatus !is DownloadStatus.Downloading) {
+                    if (!isBusy) {
                         TextButton(
                             onClick = onDismiss,
                             modifier = Modifier.weight(1f)
@@ -267,6 +305,16 @@ fun AppUpdateDialog(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Downloading...")
+                            }
+                        }
+                        is DownloadStatus.Patching -> {
+                            Button(
+                                onClick = {},
+                                enabled = false,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Applying Patch...")
                             }
                         }
                         else -> {

@@ -44,6 +44,15 @@ class AddTransactionViewModelTest {
     lateinit var updateTransactionUseCase: UpdateTransactionUseCase
 
     @Mock
+    lateinit var addRecurringExpenseUseCase: com.hevincj.cashflow.domain.usecase.AddRecurringExpenseUseCase
+
+    @Mock
+    lateinit var deleteRecurringExpenseUseCase: com.hevincj.cashflow.domain.usecase.DeleteRecurringExpenseUseCase
+
+    @Mock
+    lateinit var recurringExpenseRepository: com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
+
+    @Mock
     lateinit var getTransactionsUseCase: GetTransactionsUseCase
 
     @Mock
@@ -66,9 +75,21 @@ class AddTransactionViewModelTest {
         ),
         Transaction(
             id = "456",
-            title = "Huge Amount",
+            title = "Salary",
             timestamp = 1718278312000L,
-            amount = -1500000.789,
+            amount = 5000.0,
+            icon = androidx.compose.material.icons.Icons.Rounded.ShoppingBag,
+            iconBgColor = Color(0xFF67E2AE),
+            type = TransactionType.INCOME,
+            category = TransactionCategory.SALARY,
+            description = "Monthly pay",
+            isSynced = true
+        ),
+        Transaction(
+            id = "789",
+            title = "Over Limit Groceries",
+            timestamp = 1718278312000L,
+            amount = -123456789.999,
             icon = androidx.compose.material.icons.Icons.Rounded.ShoppingBag,
             iconBgColor = Color(0xFFF19E79),
             type = TransactionType.EXPENSE,
@@ -83,6 +104,7 @@ class AddTransactionViewModelTest {
         MockitoAnnotations.openMocks(this)
         runBlocking {
             whenever(getTransactionsUseCase.invoke()).thenReturn(flowOf(sampleTransactions))
+            whenever(recurringExpenseRepository.getActiveRecurringExpenses()).thenReturn(emptyList())
             whenever(getTransactionByIdUseCase.invoke(any())).thenAnswer { invocation ->
                 val id = invocation.getArgument<String>(0)
                 sampleTransactions.find { it.id == id }
@@ -94,6 +116,9 @@ class AddTransactionViewModelTest {
         return AddTransactionViewModel(
             addTransactionUseCase,
             updateTransactionUseCase,
+            addRecurringExpenseUseCase,
+            deleteRecurringExpenseUseCase,
+            recurringExpenseRepository,
             getTransactionsUseCase,
             getTransactionByIdUseCase,
             savedStateHandle

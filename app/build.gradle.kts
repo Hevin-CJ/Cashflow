@@ -164,6 +164,9 @@ dependencies {
 
     // Baseline Profile
     implementation(libs.profileinstaller)
+
+    // Binary Delta Patching (BSPatch / BZip2)
+    implementation(libs.commons.compress)
 }
 
 baselineProfile {

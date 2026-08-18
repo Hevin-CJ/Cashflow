@@ -17,15 +17,30 @@ class UpdateRepositoryImpl @Inject constructor(
             val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
                 ?: release.assets.firstOrNull()
 
+            val cleanCurrent = currentVersionName.trim().removePrefix("v").removePrefix("V")
+            val cleanRemote = release.tagName.trim().removePrefix("v").removePrefix("V")
+
+            val patchAsset = release.assets.firstOrNull { asset ->
+                val name = asset.name.lowercase()
+                name.endsWith(".patch") && (
+                    name.contains("patch-v${cleanCurrent}-to-v${cleanRemote}") ||
+                    name.contains("patch-${cleanCurrent}-to-${cleanRemote}") ||
+                    name.contains("patch-v${cleanCurrent}-to-${cleanRemote}") ||
+                    name.contains("patch-${cleanCurrent}-to-v${cleanRemote}")
+                )
+            }
+
             val isNewer = isNewerVersion(remoteTag = release.tagName, currentVersion = currentVersionName)
             val updateInfo = AppUpdateInfo(
                 isUpdateAvailable = isNewer && apkAsset != null,
-                latestVersion = release.tagName.removePrefix("v").removePrefix("V"),
-                currentVersion = currentVersionName,
+                latestVersion = cleanRemote,
+                currentVersion = cleanCurrent,
                 releaseTitle = release.name ?: release.tagName,
                 releaseNotes = formatReleaseNotes(release.body),
                 downloadUrl = apkAsset?.browserDownloadUrl ?: "",
-                apkSize = apkAsset?.size ?: 0L
+                apkSize = apkAsset?.size ?: 0L,
+                patchDownloadUrl = patchAsset?.browserDownloadUrl,
+                patchSize = patchAsset?.size
             )
             Result.success(updateInfo)
         } catch (e: Exception) {

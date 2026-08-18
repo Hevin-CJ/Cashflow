@@ -51,6 +51,9 @@ class HomeViewModelTest {
     lateinit var repository: TransactionRepository
 
     @Mock
+    lateinit var recurringExpenseRepository: com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
+
+    @Mock
     lateinit var networkMonitor: NetworkMonitor
 
     @Mock
@@ -116,6 +119,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
@@ -138,6 +142,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
@@ -162,6 +167,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
@@ -184,6 +190,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
@@ -212,6 +219,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
@@ -237,6 +245,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
@@ -276,6 +285,7 @@ class HomeViewModelTest {
             addTransactionUseCase,
             deleteTransactionUseCase,
             repository,
+            recurringExpenseRepository,
             networkMonitor,
             budgetRepository,
             processRecurringExpensesUseCase,
