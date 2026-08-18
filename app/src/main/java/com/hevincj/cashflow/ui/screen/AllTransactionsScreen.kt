@@ -306,6 +306,7 @@ fun AllTransactionsScreen(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun SwipableTransactionRow(
     transaction: Transaction,

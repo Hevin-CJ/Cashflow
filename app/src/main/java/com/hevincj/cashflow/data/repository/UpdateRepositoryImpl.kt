@@ -23,13 +23,42 @@ class UpdateRepositoryImpl @Inject constructor(
                 latestVersion = release.tagName.removePrefix("v").removePrefix("V"),
                 currentVersion = currentVersionName,
                 releaseTitle = release.name ?: release.tagName,
-                releaseNotes = release.body ?: "No release notes provided.",
+                releaseNotes = formatReleaseNotes(release.body),
                 downloadUrl = apkAsset?.browserDownloadUrl ?: "",
                 apkSize = apkAsset?.size ?: 0L
             )
             Result.success(updateInfo)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private fun formatReleaseNotes(rawBody: String?): String {
+        if (rawBody.isNullOrBlank()) return "• Bug fixes and performance improvements."
+
+        val cleaned = rawBody
+            .lines()
+            .filterNot { it.contains("Full Changelog", ignoreCase = true) }
+            .filterNot { it.trim().startsWith("https://github.com/") }
+            .map { line ->
+                line.replace(Regex("\\s+by\\s+@[\\w-]+(\\s+in\\s+https://\\S+)?"), "")
+                    .replace(Regex("in https://\\S+"), "")
+                    .replace(Regex("^#+\\s*"), "")
+                    .trim()
+            }
+            .filter { line ->
+                line.isNotEmpty() && !line.equals("What's Changed", ignoreCase = true)
+            }
+            .joinToString("\n") { line ->
+                val trimmed = line.trimStart('*', '-', '•', ' ')
+                "• $trimmed"
+            }
+            .trim()
+
+        return if (cleaned.isBlank()) {
+            "• Bug fixes and performance improvements."
+        } else {
+            cleaned
         }
     }
 

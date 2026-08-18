@@ -3,6 +3,8 @@ package com.hevincj.cashflow.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -376,12 +378,13 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .background(BackgroundGray)
                 .padding(innerPaddingValues)
-                .padding(horizontal = 24.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             ProfileHeader(uiState = uiState, onClick = { rootNavController.navigate("edit_profile") })
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             menuItems.forEach { item ->
                 val isChecking = item.title == "Check for Updates" && uiState.isCheckingUpdate
@@ -400,8 +403,9 @@ fun ProfileScreen(
                         }
                     }
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         SnackbarHost(
@@ -421,13 +425,13 @@ private fun ProfileHeader(
     Box(
         contentAlignment = Alignment.BottomEnd,
         modifier = Modifier
-            .size(104.dp)
+            .size(86.dp)
             .clickable(onClick = onClick)
     ) {
         // Profile Image Box
         Box(
             modifier = Modifier
-                .size(100.dp)
+                .size(80.dp)
                 .clip(CircleShape)
                 .background(if (LocalDarkTheme.current) Color(0xFF2C2C2E) else Color(0xFFEFEFFF)),
             contentAlignment = Alignment.Center
@@ -444,7 +448,7 @@ private fun ProfileHeader(
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = "Profile Picture Placeholder",
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(44.dp),
                     tint = Color(0xFF635BFF)
                 )
             }
@@ -453,10 +457,10 @@ private fun ProfileHeader(
         // Edit Icon Badge
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(28.dp)
                 .clip(CircleShape)
                 .background(CardBackground)
-                .padding(3.dp) // Creates the white stroke effect
+                .padding(2.5.dp) // Creates the stroke effect
         ) {
             Box(
                 modifier = Modifier
@@ -468,14 +472,14 @@ private fun ProfileHeader(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit Profile",
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(13.dp),
                     tint = Color(0xFF635BFF)
                 )
             }
         }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(12.dp))
 
     val fullName = if (uiState.firstName.isBlank() && uiState.lastName.isBlank()) {
         uiState.username.substringBefore("@")
@@ -485,16 +489,16 @@ private fun ProfileHeader(
 
     Text(
         text = fullName,
-        fontSize = 20.sp,
+        fontSize = 18.sp,
         fontWeight = FontWeight.SemiBold,
         color = TextPrimary
     )
 
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(2.dp))
 
     Text(
         text = uiState.username,
-        fontSize = 14.sp,
+        fontSize = 13.sp,
         color = TextSecondary
     )
 }
@@ -526,8 +530,8 @@ private fun MenuItemRow(
         // Leading Icon Container
         Box(
             modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
                 .background(item.backgroundColor),
             contentAlignment = Alignment.Center
         ) {
@@ -535,25 +539,25 @@ private fun MenuItemRow(
                 imageVector = item.icon,
                 contentDescription = item.title,
                 tint = Color.White,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
 
-        Spacer(modifier = Modifier.width(20.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
         // Title & Subtitle Text
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.title,
-                fontSize = 16.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Medium,
                 color = TextPrimary
             )
             if (item.subtitle != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(1.dp))
                 Text(
                     text = item.subtitle,
-                    fontSize = 12.sp,
+                    fontSize = 11.5.sp,
                     color = TextSecondary
                 )
             }
@@ -562,7 +566,7 @@ private fun MenuItemRow(
         // Trailing Chevron / Progress Indicator
         if (isLoading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,
                 color = Color(0xFF635BFF)
             )
@@ -571,7 +575,7 @@ private fun MenuItemRow(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Navigate to ${item.title}",
                 tint = Color(0xFFB3B3B3),
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
     }

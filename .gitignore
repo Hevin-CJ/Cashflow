@@ -41,7 +41,6 @@ execution/
 *.ipr
 *.iws
 .kotlin/errors
-stability_config.conf
 Configure
 LICENSE
 *.png

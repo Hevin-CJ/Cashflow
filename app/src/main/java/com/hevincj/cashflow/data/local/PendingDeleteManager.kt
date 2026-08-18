@@ -7,7 +7,7 @@ import javax.inject.Singleton
 
 @Singleton
 class PendingDeleteManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
     private val sharedPrefs by lazy {
         context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)

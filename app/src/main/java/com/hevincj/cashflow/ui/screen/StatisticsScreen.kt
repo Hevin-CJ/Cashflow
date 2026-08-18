@@ -118,18 +118,16 @@ fun StatisticsScreen(
             }
 
             // Tab bar to switch between Overview and Budgets
-            TabRow(
+            SecondaryTabRow(
                 selectedTabIndex = currentTab,
                 containerColor = Color.Transparent,
                 contentColor = FABBackgroundColor,
                 divider = {},
-                indicator = { tabPositions ->
-                    if (currentTab < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[currentTab]),
-                            color = FABBackgroundColor
-                        )
-                    }
+                indicator = {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(currentTab),
+                        color = FABBackgroundColor
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()

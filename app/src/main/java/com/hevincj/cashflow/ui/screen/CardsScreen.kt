@@ -126,7 +126,7 @@ fun CardsScreen(
     }
 }
 
-private val indianCurrencyFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+private val indianCurrencyFormatter = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN"))
 
 @Composable
 fun CreditCardItem(card: CreditCard) {

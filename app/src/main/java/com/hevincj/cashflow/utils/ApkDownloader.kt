@@ -22,7 +22,7 @@ sealed interface DownloadStatus {
 
 @Singleton
 class ApkDownloader @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
     private val client = OkHttpClient.Builder().build()
 

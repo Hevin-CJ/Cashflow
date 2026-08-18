@@ -26,7 +26,7 @@ class TransactionRepositoryImpl @Inject constructor(
     private val syncScheduler: TransactionSyncScheduler,
     private val pendingDeleteManager: PendingDeleteManager,
     private val syncManager: TransactionSyncManager,
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : TransactionRepository {
 
     override fun getAllTransactions(): Flow<List<Transaction>> {

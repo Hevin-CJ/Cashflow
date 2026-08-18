@@ -146,7 +146,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.refreshSync(force = true, limit = 25)
+        viewModel.refreshSync(force = true, limit = 1000)
     }
 
     LaunchedEffect(uiState.isSessionExpired) {
@@ -314,7 +314,7 @@ fun HomeScreenContent(
                 income = uiState.totalIncome,
                 expense = uiState.totalExpense,
                 selectedRange = uiState.balanceRange,
-                isLoading = uiState.isLoading,
+                isLoading = shouldShowShimmer,
                 onRangeSelected = onRangeSelected,
                 shimmerTranslateProvider = shimmerTranslateProvider
             )
@@ -381,7 +381,7 @@ fun HomeScreenContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-            TransactionHeader(isLoading = uiState.isLoading, onSeeAllClick = onNavigateToAllTransactions, shimmerTranslateProvider = shimmerTranslateProvider)
+            TransactionHeader(isLoading = shouldShowShimmer, onSeeAllClick = onNavigateToAllTransactions, shimmerTranslateProvider = shimmerTranslateProvider)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -616,6 +616,7 @@ fun Modifier.shimmerEffect(translateProvider: () -> Float): Modifier = this
     }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun SwipeableTransactionItem(
     transaction: Transaction,

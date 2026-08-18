@@ -155,7 +155,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun refreshSync(force: Boolean = true, limit: Int = 25) {
+    fun refreshSync(force: Boolean = true, limit: Int = 1000) {
         if (syncJob?.isActive == true && !force) return
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
@@ -268,6 +268,7 @@ class HomeViewModel @Inject constructor(
 
             // Slice list cleanly to maximum display elements here on background thread
             val displayTransactions = sortedTransactions.take(25).toImmutableList()
+            val shouldKeepLoading = isInitialSyncRunning && allTransactions.isEmpty()
 
             withContext(Dispatchers.Main) {
                 _state.value = _state.value.copy(
@@ -276,7 +277,7 @@ class HomeViewModel @Inject constructor(
                     totalExpense = expense,
                     totalBalance = balance,
                     exceededBudgets = exceeded.toImmutableList(),
-                    isLoading = false
+                    isLoading = if (shouldKeepLoading) true else false
                 )
             }
         }
