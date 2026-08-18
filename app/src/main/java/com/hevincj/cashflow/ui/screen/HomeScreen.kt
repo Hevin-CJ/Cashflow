@@ -37,6 +37,11 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MenuDefaults
@@ -419,7 +424,14 @@ fun HomeScreenContent(
                         onNavigateToAddTransaction = onNavigateToAddTransaction,
                         onBatchIconClick = onBatchIconClickLambda,
                         isScrolling = isScrolling,
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(durationMillis = 350, easing = LinearOutSlowInEasing),
+                            fadeOutSpec = tween(durationMillis = 300, easing = FastOutLinearInEasing),
+                            placementSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ),
                         textPrimary = itemTextPrimary,
                         textSecondary = itemTextSecondary,
                         cardBackground = itemCardBackground,

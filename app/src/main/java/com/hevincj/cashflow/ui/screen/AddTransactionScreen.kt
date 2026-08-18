@@ -120,6 +120,70 @@ fun AddTransactionScreen(
                 )
             )
         },
+        bottomBar = {
+            Surface(
+                color = BackgroundGray,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.saveTransaction() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = RoundedCornerShape(28.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = PrimaryGradient,
+                                    shape = RoundedCornerShape(28.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (uiState.isLoading) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.5.dp
+                                )
+                            } else {
+                                Row(
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Save",
+                                        tint = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (uiState.isEditMode) "Update Transaction" else "Save Transaction",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         containerColor = BackgroundGray // Sleek off-white background
     ) { innerPadding ->
         if (uiState.isLoading && uiState.isEditMode && uiState.amount.isEmpty()) {
@@ -467,58 +531,6 @@ fun AddTransactionScreen(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Save Transaction CTA Button
-            Button(
-                onClick = { viewModel.saveTransaction() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent
-                ),
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = PrimaryGradient,
-                            shape = RoundedCornerShape(28.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.5.dp
-                        )
-                    } else {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = "Save",
-                                tint = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (uiState.isEditMode) "Update Transaction" else "Save Transaction",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
     }
@@ -529,11 +541,20 @@ private fun TransactionTypeToggle(
     selectedType: TransactionType,
     onTypeSelected: (TransactionType) -> Unit
 ) {
+    val isDark = LocalDarkTheme.current
+    val toggleBg = if (isDark) Color(0xFF2C2C2E) else Color(0xFFEEEEEE)
+    val unselectedTextCol = TextSecondary
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(54.dp)
-            .background(Color(0xFFEEEEEE), shape = CircleShape)
+            .background(toggleBg, shape = CircleShape)
+            .border(
+                width = 1.dp,
+                color = if (isDark) Color(0xFF38383A) else Color.Transparent,
+                shape = CircleShape
+            )
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -544,7 +565,7 @@ private fun TransactionTypeToggle(
             animationSpec = tween(250)
         )
         val incomeTextCol by animateColorAsState(
-            targetValue = if (isIncome) Color.White else TextSecondaryColor,
+            targetValue = if (isIncome) Color.White else unselectedTextCol,
             animationSpec = tween(250)
         )
 
@@ -583,7 +604,7 @@ private fun TransactionTypeToggle(
             animationSpec = tween(250)
         )
         val expenseTextCol by animateColorAsState(
-            targetValue = if (isExpense) Color.White else TextSecondaryColor,
+            targetValue = if (isExpense) Color.White else unselectedTextCol,
             animationSpec = tween(250)
         )
 
