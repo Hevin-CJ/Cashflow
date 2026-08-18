@@ -382,9 +382,9 @@ fun ProfileScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             ProfileHeader(uiState = uiState, onClick = { rootNavController.navigate("edit_profile") })
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             menuItems.forEach { item ->
                 val isChecking = item.title == "Check for Updates" && uiState.isCheckingUpdate
@@ -403,9 +403,9 @@ fun ProfileScreen(
                         }
                     }
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
         SnackbarHost(
@@ -425,13 +425,13 @@ private fun ProfileHeader(
     Box(
         contentAlignment = Alignment.BottomEnd,
         modifier = Modifier
-            .size(86.dp)
+            .size(96.dp)
             .clickable(onClick = onClick)
     ) {
         // Profile Image Box
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(92.dp)
                 .clip(CircleShape)
                 .background(if (LocalDarkTheme.current) Color(0xFF2C2C2E) else Color(0xFFEFEFFF)),
             contentAlignment = Alignment.Center
@@ -448,7 +448,7 @@ private fun ProfileHeader(
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = "Profile Picture Placeholder",
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(50.dp),
                     tint = Color(0xFF635BFF)
                 )
             }
@@ -457,7 +457,7 @@ private fun ProfileHeader(
         // Edit Icon Badge
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(30.dp)
                 .clip(CircleShape)
                 .background(CardBackground)
                 .padding(2.5.dp) // Creates the stroke effect
@@ -472,14 +472,14 @@ private fun ProfileHeader(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit Profile",
-                    modifier = Modifier.size(13.dp),
+                    modifier = Modifier.size(14.dp),
                     tint = Color(0xFF635BFF)
                 )
             }
         }
     }
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(14.dp))
 
     val fullName = if (uiState.firstName.isBlank() && uiState.lastName.isBlank()) {
         uiState.username.substringBefore("@")
@@ -489,16 +489,16 @@ private fun ProfileHeader(
 
     Text(
         text = fullName,
-        fontSize = 18.sp,
+        fontSize = 20.sp,
         fontWeight = FontWeight.SemiBold,
         color = TextPrimary
     )
 
-    Spacer(modifier = Modifier.height(2.dp))
+    Spacer(modifier = Modifier.height(3.dp))
 
     Text(
         text = uiState.username,
-        fontSize = 13.sp,
+        fontSize = 13.5.sp,
         color = TextSecondary
     )
 }
@@ -530,8 +530,8 @@ private fun MenuItemRow(
         // Leading Icon Container
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(48.dp)
+                .clip(RoundedCornerShape(13.dp))
                 .background(item.backgroundColor),
             contentAlignment = Alignment.Center
         ) {
@@ -539,25 +539,25 @@ private fun MenuItemRow(
                 imageVector = item.icon,
                 contentDescription = item.title,
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
         // Title & Subtitle Text
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.title,
-                fontSize = 14.5.sp,
+                fontSize = 15.5.sp,
                 fontWeight = FontWeight.Medium,
                 color = TextPrimary
             )
             if (item.subtitle != null) {
-                Spacer(modifier = Modifier.height(1.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = item.subtitle,
-                    fontSize = 11.5.sp,
+                    fontSize = 12.sp,
                     color = TextSecondary
                 )
             }
@@ -566,7 +566,7 @@ private fun MenuItemRow(
         // Trailing Chevron / Progress Indicator
         if (isLoading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp),
                 strokeWidth = 2.dp,
                 color = Color(0xFF635BFF)
             )
@@ -575,7 +575,7 @@ private fun MenuItemRow(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Navigate to ${item.title}",
                 tint = Color(0xFFB3B3B3),
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
     }
