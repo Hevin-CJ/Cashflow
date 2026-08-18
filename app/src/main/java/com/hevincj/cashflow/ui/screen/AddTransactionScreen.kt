@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.models.TransactionCategory
+import com.hevincj.cashflow.domain.models.RecurringFrequency
 import com.hevincj.cashflow.ui.screen.viewmodel.AddTransactionViewModel
 import com.hevincj.cashflow.ui.theme.*
 
@@ -332,6 +333,111 @@ fun AddTransactionScreen(
                             unfocusedBorderColor = Color.LightGray
                         )
                     )
+                }
+            }
+
+            // Recurring Subscription Option
+            val isDark = LocalDarkTheme.current
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF8121FD).copy(alpha = if (isDark) 0.25f else 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Autorenew,
+                                    contentDescription = "Recurring Subscription",
+                                    tint = if (isDark) Color(0xFFA78BFA) else Color(0xFF8121FD),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Recurring Subscription",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Auto-repeat this payment on schedule",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = uiState.isRecurring,
+                            onCheckedChange = { viewModel.onRecurringChange(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8121FD),
+                                uncheckedThumbColor = if (isDark) Color(0xFF9CA3AF) else Color.White,
+                                uncheckedTrackColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFE5E5EA)
+                            )
+                        )
+                    }
+
+                    AnimatedVisibility(visible = uiState.isRecurring) {
+                        Column(modifier = Modifier.padding(top = 16.dp)) {
+                            Text(
+                                text = "Repeat Frequency",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextSecondary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RecurringFrequency.values().forEach { freq ->
+                                    val isSelected = uiState.recurringFrequency == freq
+                                    val label = when (freq) {
+                                        RecurringFrequency.DAILY -> "Daily"
+                                        RecurringFrequency.WEEKLY -> "Weekly"
+                                        RecurringFrequency.MONTHLY -> "Monthly"
+                                        RecurringFrequency.YEARLY -> "Yearly"
+                                    }
+                                    val chipBg = if (isSelected) Color(0xFF8121FD) else (if (isDark) Color(0xFF2C2C2E) else Color(0xFFF3F4F6))
+                                    val chipBorder = if (isSelected) Color.Transparent else (if (isDark) Color(0xFF3A3A3C) else Color.Transparent)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(chipBg)
+                                            .border(1.dp, chipBorder, RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.onRecurringFrequencyChange(freq) }
+                                            .padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color.White else TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

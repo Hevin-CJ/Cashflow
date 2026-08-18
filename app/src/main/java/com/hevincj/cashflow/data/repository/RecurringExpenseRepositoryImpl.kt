@@ -34,7 +34,7 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
         dao.getActiveRecurringExpensesList().map { it.toDomain() }
     }
 
-    override suspend fun insertRecurringExpense(recurringExpense: RecurringExpense) = withContext(Dispatchers.IO) {
+    override suspend fun insertRecurringExpense(recurringExpense: RecurringExpense): Long = withContext(Dispatchers.IO) {
         var entity = recurringExpense.toEntity().copy(isSynced = false)
 
         if (entity.serverId != null) {
@@ -50,6 +50,7 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
         syncScheduler.triggerImmediateProcessing()
         // Queue server metadata synchronization payload
         syncScheduler.scheduleUpsertSync(localId.toInt())
+        localId
     }
 
     override suspend fun updateRecurringExpense(recurringExpense: RecurringExpense) = withContext(Dispatchers.IO) {
@@ -150,6 +151,8 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
                         toDelete = toDelete,
                         toInsert = remoteEntities
                     )
+
+                    syncScheduler.triggerImmediateProcessing()
                 }
                 return@withContext null
             } else {

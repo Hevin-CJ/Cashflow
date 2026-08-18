@@ -14,7 +14,6 @@
 <img width="154" height="346" alt="cards" src="https://github.com/user-attachments/assets/8b0d9481-6c63-45e8-89a8-6edb1b3153de" />
 <img width="154" height="346" alt="profile" src="https://github.com/user-attachments/assets/27d85bf3-1e34-440d-8732-e153f61c5aad" />
 <img width="154" height="346" alt="addtrans" src="https://github.com/user-attachments/assets/9c2be905-ad49-44dc-a23b-66a278c26be0" />
-
 ---
 
 ## ✨ Features
@@ -55,7 +54,11 @@ The application follows **Clean Architecture** principles separated into 3 core 
 ┌────────────────────────────────────────────────────────────────────────┐
 │                     KTOR BACKEND (GOOGLE CLOUD RUN)                    │
 │                                                                        │
+<<<<<<< HEAD
 │   Netty Engine  ──▶  Ktor Routes  ──▶  Koin DI  ──▶  KMongo Coroutines │
+=======
+│   Netty Engine  ──▶  Ktor Routes  ──▶  Koin DI  ──▶  KMongo Coroutines  │
+>>>>>>> 14a172e (feat: in-app updater, release workflow, and performance fixes)
 └───────────────────────────────────────────────────┬────────────────────┘
                                                     │ Mongo URI
                                                     ▼

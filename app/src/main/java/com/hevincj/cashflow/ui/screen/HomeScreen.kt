@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -131,7 +132,8 @@ fun HomeScreen(
         val currentSize = uiState.transactions.size
         if (currentSize > 0) {
             val isAtTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-            if (previousSize != -1 && currentSize > previousSize && isAtTop) {
+            val isNotScrolling = !listState.isScrollInProgress
+            if (previousSize != -1 && currentSize > previousSize && isAtTop && isNotScrolling) {
                 listState.animateScrollToItem(0)
             }
             previousSize = currentSize
@@ -139,7 +141,6 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        delay(200)
         viewModel.refreshSync(force = true, limit = 25)
     }
 
@@ -192,19 +193,47 @@ fun HomeScreenContent(
     rootNavController: NavController,
     listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState()
 ) {
-    val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
-    val shimmerTranslateAnim = shimmerTransition.animateFloat(
-        initialValue = -300f,
-        targetValue = 900f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerTranslate"
+    val isScrolling by remember { derivedStateOf { listState.isScrollInProgress } }
+    var activeTransactions by remember { mutableStateOf(uiState.transactions) }
+
+    LaunchedEffect(uiState.transactions, isScrolling) {
+        if (!isScrolling) {
+            activeTransactions = uiState.transactions
+        }
+    }
+
+    val displayedTransactions = if (isScrolling && activeTransactions.isNotEmpty()) {
+        activeTransactions
+    } else {
+        uiState.transactions
+    }
+
+    val shouldShowShimmer = uiState.isLoading || (
+        displayedTransactions.isEmpty() &&
+        uiState.transactions.isEmpty() &&
+        uiState.totalBalance == 0.0 &&
+        uiState.totalIncome == 0.0 &&
+        uiState.totalExpense == 0.0
     )
-    val shimmerTranslateProvider = remember(shimmerTranslateAnim) { { shimmerTranslateAnim.value } }
+
+    val shimmerTranslateProvider: () -> Float = if (shouldShowShimmer) {
+        val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
+        val shimmerTranslateAnim = shimmerTransition.animateFloat(
+            initialValue = -300f,
+            targetValue = 900f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmerTranslate"
+        )
+        remember(shimmerTranslateAnim) { { shimmerTranslateAnim.value } }
+    } else {
+        { 0f }
+    }
 
     var showBatchItemsTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     var isSyncErrorDismissed by remember { mutableStateOf(false) }
     var isBudgetWarningDismissed by remember { mutableStateOf(false) }
 
@@ -352,20 +381,18 @@ fun HomeScreenContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // FIX: Removed Crossfade entirely to prevent main-thread structure invalidation.
-        // Shimmer placeholders and actual items alternate cleanly inside a single stable LazyColumn view-tree.
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            userScrollEnabled = !uiState.isLoading
+            userScrollEnabled = !shouldShowShimmer
         ) {
-            if (uiState.isLoading) {
+            if (shouldShowShimmer) {
                 items(12, key = { "shimmer_$it" }, contentType = { "shimmer" }) {
                     ShimmerTransactionItem(shimmerTranslateProvider = shimmerTranslateProvider)
                 }
-            } else if (uiState.transactions.isEmpty()) {
+            } else if (displayedTransactions.isEmpty()) {
                 item(key = "empty_state") {
                     Box(modifier = Modifier.fillParentMaxSize().padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -381,16 +408,18 @@ fun HomeScreenContent(
                 }
             } else {
                 items(
-                    items = uiState.transactions,
+                    items = displayedTransactions,
                     key = { it.id },
                     contentType = { "transaction" }
                 ) { transaction ->
                     val onBatchIconClickLambda = remember(transaction.id) { { showBatchItemsTransaction = transaction } }
                     SwipeableTransactionItem(
                         transaction = transaction,
-                        onDeleteTransaction = onDeleteTransaction,
+                        onInitiateDelete = { transactionToDelete = it },
                         onNavigateToAddTransaction = onNavigateToAddTransaction,
                         onBatchIconClick = onBatchIconClickLambda,
+                        isScrolling = isScrolling,
+                        modifier = Modifier.animateItem(),
                         textPrimary = itemTextPrimary,
                         textSecondary = itemTextSecondary,
                         cardBackground = itemCardBackground,
@@ -401,6 +430,25 @@ fun HomeScreenContent(
                 }
             }
         }
+    }
+
+    if (transactionToDelete != null) {
+        val target = transactionToDelete!!
+        AlertDialog(
+            onDismissRequest = { transactionToDelete = null },
+            title = { Text("Delete Transaction?") },
+            text = { Text("\"${target.title}\" will be permanently deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toDelete = target
+                    transactionToDelete = null
+                    onDeleteTransaction(toDelete)
+                }) { Text("Delete", color = Color(0xFFE53935)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { transactionToDelete = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -559,10 +607,11 @@ fun Modifier.shimmerEffect(translateProvider: () -> Float): Modifier = this
 @Composable
 fun SwipeableTransactionItem(
     transaction: Transaction,
-    onDeleteTransaction: (Transaction) -> Unit,
+    onInitiateDelete: (Transaction) -> Unit,
     onNavigateToAddTransaction: (String?) -> Unit,
     onBatchIconClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isScrolling: Boolean = false,
     textPrimary: Color = TextPrimary,
     textSecondary: Color = TextSecondary,
     cardBackground: Color = CardBackground,
@@ -570,71 +619,62 @@ fun SwipeableTransactionItem(
     positiveGreen: Color = PositiveGreen,
     negativeRed: Color = NegativeRed
 ) {
-    val density = LocalDensity.current
-    val coroutineScope = rememberCoroutineScope()
-    val currentOnDeleteTransaction by rememberUpdatedState(onDeleteTransaction)
+    val onClick = remember(transaction.id, onNavigateToAddTransaction) { { onNavigateToAddTransaction(transaction.id) } }
+    val currentOnInitiateDelete by rememberUpdatedState(onInitiateDelete)
     val currentTransaction by rememberUpdatedState(transaction)
-    var showDeleteConfirmation by remember { mutableStateOf(false) }
-    val minThresholdPx = remember(density) { with(density) { 80.dp.toPx() } }
-
-    // FIX: Extracted positional threshold calculation into a static remembered reference.
-    // Stops garbage collection allocation churn executing per layout frame evaluation.
-    val positionalThresholdCalc = remember(minThresholdPx) {
-        { totalDistance: Float -> maxOf(totalDistance * 0.75f, minThresholdPx) }
-    }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                showDeleteConfirmation = true
+                currentOnInitiateDelete(currentTransaction)
                 false
             } else {
                 false
             }
-        },
-        positionalThreshold = positionalThresholdCalc
+        }
     )
-
-    if (showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = {
-                showDeleteConfirmation = false
-                coroutineScope.launch { dismissState.reset() }
-            },
-            title = { Text("Delete Transaction?") },
-            text = { Text("\"${transaction.title}\" will be permanently deleted.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteConfirmation = false
-                    currentOnDeleteTransaction(currentTransaction)
-                }) { Text("Delete", color = Color(0xFFE53935)) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDeleteConfirmation = false
-                    coroutineScope.launch { dismissState.reset() }
-                }) { Text("Cancel") }
-            }
-        )
-    }
-
-    val onClick = remember(transaction.id, onNavigateToAddTransaction) { { onNavigateToAddTransaction(transaction.id) } }
 
     SwipeToDismissBox(
         modifier = modifier,
         state = dismissState,
         enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
+        enableDismissFromEndToStart = !isScrolling,
         backgroundContent = {
             if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
-                Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color(0xFFE53935)).padding(horizontal = 24.dp), contentAlignment = Alignment.CenterEnd) {
-                    Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(24.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFE53935))
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Icon(
+                        Icons.Rounded.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         },
         content = {
-            Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(itemBackgroundGray).clickable(onClick = onClick)) {
-                TransactionItem(transaction = transaction, onBatchIconClick = onBatchIconClick, textPrimary = textPrimary, textSecondary = textSecondary, cardBackground = cardBackground, positiveGreen = positiveGreen, negativeRed = negativeRed)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(itemBackgroundGray)
+                    .clickable(onClick = onClick)
+            ) {
+                TransactionItem(
+                    transaction = transaction,
+                    onBatchIconClick = onBatchIconClick,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary,
+                    cardBackground = cardBackground,
+                    positiveGreen = positiveGreen,
+                    negativeRed = negativeRed
+                )
             }
         }
     )

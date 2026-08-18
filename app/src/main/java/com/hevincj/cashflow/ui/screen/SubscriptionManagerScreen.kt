@@ -475,26 +475,31 @@ fun AddSubscriptionDialog(
                     Button(
                         onClick = {
                             val now = System.currentTimeMillis()
-                            // FIX: Initial nextDueDate is matching baseline timestamp exactly
-                            // to let the background logger instantly populate the first active transaction entry
+                            val nextDue = when (selectedFrequency) {
+                                RecurringFrequency.DAILY -> now + 86400000L
+                                RecurringFrequency.WEEKLY -> now + 7 * 86400000L
+                                RecurringFrequency.MONTHLY -> now + 30 * 86400000L
+                                RecurringFrequency.YEARLY -> now + 365 * 86400000L
+                            }
+                            val cleanTitle = title.trim()
                             val newSub = RecurringExpense(
                                 id = "",
                                 localId = 0,
                                 frequency = selectedFrequency,
                                 startDate = now,
-                                lastProcessedDate = null,
-                                nextDueDate = now,
+                                lastProcessedDate = now,
+                                nextDueDate = nextDue,
                                 isSynced = false,
                                 transaction = Transaction(
                                     id = "",
-                                    title = title.trim(),
+                                    title = cleanTitle,
                                     timestamp = now,
-                                    amount = amount,
+                                    amount = -kotlin.math.abs(amount),
                                     icon = selectedCategory.icon,
                                     iconBgColor = selectedCategory.iconBgColor,
                                     type = TransactionType.EXPENSE,
                                     category = selectedCategory,
-                                    description = null,
+                                    description = "$cleanTitle subscription",
                                     isSynced = false
                                 )
                             )

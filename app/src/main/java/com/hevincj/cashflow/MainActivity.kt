@@ -25,7 +25,6 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var themeManager: ThemeManager
 
-    // FIX: Inject scheduler to initialize background workers on process startup
     @Inject
     lateinit var recurringExpenseSyncScheduler: RecurringExpenseSyncScheduler
 
@@ -38,7 +37,7 @@ class MainActivity : ComponentActivity() {
         requestHighRefreshRate()
         enableEdgeToEdge()
 
-        // FIX: Start background auto-logging processing engine immediately on app launch
+       
         recurringExpenseSyncScheduler.schedulePeriodicRecurringProcessing()
 
         setContent {
@@ -90,6 +89,9 @@ class MainActivity : ComponentActivity() {
                             window.attributes = layoutParams
                         }
                     }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    window.setPreferMinimalPostProcessing(true)
                 }
             } catch (e: Exception) {
                 // Safe fallback if display APIs are restricted or fail

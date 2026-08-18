@@ -24,5 +24,6 @@ class CashFlowApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         recurringExpenseScheduler.schedulePeriodicRecurringCheck()
+        recurringExpenseScheduler.triggerOneTimeCheck()
     }
 }

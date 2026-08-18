@@ -174,4 +174,14 @@ object NetworkModule {
             .build()
             .create(com.hevincj.cashflow.data.remote.api.ExchangeApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideGithubApi(): com.hevincj.cashflow.data.remote.api.GithubApi {
+        return retrofit2.Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+            .build()
+            .create(com.hevincj.cashflow.data.remote.api.GithubApi::class.java)
+    }
 }

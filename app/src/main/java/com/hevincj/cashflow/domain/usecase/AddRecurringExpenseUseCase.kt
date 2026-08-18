@@ -7,7 +7,7 @@ import javax.inject.Inject
 class AddRecurringExpenseUseCase @Inject constructor(
     private val repository: RecurringExpenseRepository
 ) {
-    suspend operator fun invoke(recurringExpense: RecurringExpense) {
-        repository.insertRecurringExpense(recurringExpense)
+    suspend operator fun invoke(recurringExpense: RecurringExpense): Long {
+        return repository.insertRecurringExpense(recurringExpense)
     }
 }

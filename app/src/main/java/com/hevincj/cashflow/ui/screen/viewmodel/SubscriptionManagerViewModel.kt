@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.hevincj.cashflow.domain.models.RecurringExpense
 import com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
 import com.hevincj.cashflow.domain.usecase.AddRecurringExpenseUseCase
+import com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.DeleteRecurringExpenseUseCase
 import com.hevincj.cashflow.domain.usecase.GetRecurringExpensesUseCase
 import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
@@ -25,9 +26,9 @@ class SubscriptionManagerViewModel @Inject constructor(
     private val getRecurringExpensesUseCase: GetRecurringExpensesUseCase,
     private val addRecurringExpenseUseCase: AddRecurringExpenseUseCase,
     private val deleteRecurringExpenseUseCase: DeleteRecurringExpenseUseCase,
+    private val addTransactionUseCase: AddTransactionUseCase,
     private val repository: RecurringExpenseRepository,
     private val scheduler: RecurringExpenseScheduler,
-    // FIX 1: Inject the local processing engine use case directly into the ViewModel
     private val processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
 ) : ViewModel() {
 
@@ -77,8 +78,19 @@ class SubscriptionManagerViewModel @Inject constructor(
 
     fun addSubscription(recurringExpense: RecurringExpense) {
         viewModelScope.launch {
-            // 1. Insert subscription metadata profile parameters to database
-            addRecurringExpenseUseCase(recurringExpense)
+            // 1. Insert subscription metadata profile blueprint first to obtain local row ID
+            val localId = addRecurringExpenseUseCase(recurringExpense)
+            val assignedId = if (localId > 0) localId.toString() else recurringExpense.id
+
+            // 2. Log the initial payment transaction with recurringExpenseId linked
+            val initialTx = recurringExpense.transaction.copy(
+                id = "0",
+                timestamp = recurringExpense.startDate,
+                isSynced = false,
+                recurringExpenseId = assignedId
+            )
+            addTransactionUseCase(initialTx)
+
             try {
                 processRecurringExpensesUseCase()
             } catch (e: Exception) {

@@ -823,37 +823,37 @@ private fun CustomStatTransactionItem(
     amount: String
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Card(
-            modifier = Modifier.size(56.dp),
-            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.size(42.dp),
+            shape = RoundedCornerShape(10.dp),
             colors = CardDefaults.cardColors(containerColor = iconBgColor)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.padding(14.dp).size(28.dp),
+                modifier = Modifier.padding(9.dp).size(24.dp),
                 tint = iconColor
             )
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = category,
                 color = TextPrimaryColor,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(text = date, color = TextSecondaryColor, fontSize = 14.sp)
+            Text(text = date, color = TextSecondaryColor, fontSize = 12.sp)
         }
         Text(
             text = amount,
             color = if (amount.startsWith("-")) NegativeAmountColor else PositiveGreen,
-            fontSize = 16.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold
         )
     }

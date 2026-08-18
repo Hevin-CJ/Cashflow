@@ -25,7 +25,7 @@ fun SplashScreen(
     viewModel: SplashViewModel = hiltViewModel()
 ) {
     LaunchedEffect(key1 = true) {
-        delay(1500) // Small delay for UX so it doesn't flash too fast
+        delay(1500)
         if (viewModel.isUserLoggedIn()) {
             navController.navigate("main") {
                 popUpTo("splash") { inclusive = true }

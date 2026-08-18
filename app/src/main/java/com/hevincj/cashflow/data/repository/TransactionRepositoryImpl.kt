@@ -137,11 +137,13 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
-        // FIX: Derive correct initial title based on description presence
-        val resolvedTitle = if (transaction.description.isNullOrBlank()) {
-            transaction.category.displayName
-        } else {
-            transaction.description
+        // Preserve explicit title if present, otherwise fallback to description or category displayName
+        val resolvedTitle = transaction.title.ifBlank {
+            if (transaction.description.isNullOrBlank()) {
+                transaction.category.displayName
+            } else {
+                transaction.description
+            }
         }
 
         var entity = transaction.toEntity().copy(

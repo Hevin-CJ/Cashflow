@@ -59,7 +59,8 @@ import kotlinx.coroutines.withContext
 data class ProfileMenuItem(
     val title: String,
     val icon: ImageVector,
-    val backgroundColor: Color
+    val backgroundColor: Color,
+    val subtitle: String? = null
 )
 
 val menuItems = listOf(
@@ -67,6 +68,7 @@ val menuItems = listOf(
     ProfileMenuItem("Export To CSV/PDF", Icons.Default.Share, Color(0xFF65C466)),
     ProfileMenuItem("Exchange Currency", Icons.Default.AttachMoney, Color(0xFF0288D1)),
     ProfileMenuItem("Subscriptions & Recurring", Icons.Default.Autorenew, Color(0xFFFF9F1C)),
+    ProfileMenuItem("Check for Updates", Icons.Default.SystemUpdate, Color(0xFF8121FD), subtitle = "v${com.hevincj.cashflow.BuildConfig.VERSION_NAME}"),
     ProfileMenuItem("Settings", Icons.Default.Settings, Color(0xFF32827A)),
     ProfileMenuItem("Logout", Icons.AutoMirrored.Filled.ExitToApp, Color(0xFFE93B3A))
 )
@@ -345,6 +347,29 @@ fun ProfileScreen(
         viewModel.fetchUserProfile()
     }
 
+    LaunchedEffect(uiState.updateMessage) {
+        uiState.updateMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearUpdateMessage()
+        }
+    }
+
+    uiState.updateInfo?.let { updateInfo ->
+        AppUpdateDialog(
+            updateInfo = updateInfo,
+            downloadStatus = uiState.downloadStatus,
+            onDismiss = { viewModel.dismissUpdateDialog() },
+            onDownloadClick = { viewModel.startDownload(updateInfo.downloadUrl, updateInfo.latestVersion) },
+            onInstallClick = { apkFile ->
+                if (!com.hevincj.cashflow.utils.ApkInstaller.canRequestPackageInstalls(context)) {
+                    com.hevincj.cashflow.utils.ApkInstaller.openInstallPermissionSettings(context)
+                } else {
+                    com.hevincj.cashflow.utils.ApkInstaller.installApk(context, apkFile)
+                }
+            }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -359,8 +384,10 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(48.dp))
 
             menuItems.forEach { item ->
+                val isChecking = item.title == "Check for Updates" && uiState.isCheckingUpdate
                 MenuItemRow(
                     item = item,
+                    isLoading = isChecking,
                     onClick = {
                         when (item.title) {
                             "Account Info" -> rootNavController.navigate("edit_profile")
@@ -368,6 +395,7 @@ fun ProfileScreen(
                             "Settings" -> showSettingsDialog = true
                             "Exchange Currency" -> rootNavController.navigate("exchange_currency")
                             "Subscriptions & Recurring" -> rootNavController.navigate("subscription_manager")
+                            "Check for Updates" -> viewModel.checkForUpdates(isManualCheck = true)
                             "Export To CSV/PDF" -> showExportDialog = true
                         }
                     }
@@ -485,12 +513,13 @@ fun base64ToBitmap(base64Str: String?): android.graphics.Bitmap? {
 @Composable
 private fun MenuItemRow(
     item: ProfileMenuItem,
+    isLoading: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = !isLoading, onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -512,21 +541,38 @@ private fun MenuItemRow(
 
         Spacer(modifier = Modifier.width(20.dp))
 
-        // Title Text
-        Text(
-            text = item.title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
+        // Title & Subtitle Text
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary
+            )
+            if (item.subtitle != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = item.subtitle,
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+            }
+        }
 
-        // Trailing Chevron
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "Navigate to ${item.title}",
-            tint = Color(0xFFB3B3B3),
-            modifier = Modifier.size(24.dp)
-        )
+        // Trailing Chevron / Progress Indicator
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = Color(0xFF635BFF)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Navigate to ${item.title}",
+                tint = Color(0xFFB3B3B3),
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }

@@ -61,9 +61,11 @@ class ProcessRecurringExpensesUseCase @Inject constructor(
 
                 // Cross-reference all valid local/remote keys using stable date normalization
                 val isAlreadyLogged = allTransactions.any { tx ->
-                    val isMatchingRelation = tx.recurringExpenseId == expense.id ||
-                            tx.recurringExpenseId == expense.localId.toString() ||
-                            (expense.serverId != null && tx.recurringExpenseId == expense.serverId)
+                    val isMatchingRelation = !tx.recurringExpenseId.isNullOrBlank() && (
+                        (!expense.id.isNullOrBlank() && tx.recurringExpenseId == expense.id) ||
+                        (expense.localId > 0 && tx.recurringExpenseId == expense.localId.toString()) ||
+                        (!expense.serverId.isNullOrBlank() && tx.recurringExpenseId == expense.serverId)
+                    )
 
                     val txLocalDate = Instant.ofEpochMilli(tx.timestamp)
                         .atZone(zoneId)
@@ -73,12 +75,21 @@ class ProcessRecurringExpensesUseCase @Inject constructor(
                 }
 
                 if (!isAlreadyLogged) {
+                    val assignedRelationId = when {
+                        !expense.id.isNullOrBlank() -> expense.id
+                        expense.localId > 0 -> expense.localId.toString()
+                        !expense.serverId.isNullOrBlank() -> expense.serverId!!
+                        else -> null
+                    }
+                    val cleanTitle = expense.transaction.title
+                    val cleanDescription = expense.transaction.description ?: "$cleanTitle subscription"
                     val newTransaction = expense.transaction.copy(
                         id = "",
+                        title = cleanTitle,
                         timestamp = nextDueDateMs,
-                        description = expense.transaction.description ?: "Auto-logged subscription: ${expense.transaction.title}",
+                        description = cleanDescription,
                         isSynced = false,
-                        recurringExpenseId = expense.id
+                        recurringExpenseId = assignedRelationId
                     )
                     loggedTransactions.add(newTransaction)
                 }

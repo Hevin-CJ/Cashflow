@@ -3,6 +3,7 @@ package com.hevincj.cashflow.ui.screen.state
 import androidx.compose.runtime.Immutable
 import com.hevincj.cashflow.domain.models.TransactionType
 import com.hevincj.cashflow.domain.models.TransactionCategory
+import com.hevincj.cashflow.domain.models.RecurringFrequency
 
 @Immutable
 data class AddTransactionUiState(
@@ -15,5 +16,7 @@ data class AddTransactionUiState(
     val errorMessage: String? = null,
     val isSuccess: Boolean = false,
     val isEditMode: Boolean = false,
-    val transactionId: String? = null
+    val transactionId: String? = null,
+    val isRecurring: Boolean = false,
+    val recurringFrequency: RecurringFrequency = RecurringFrequency.MONTHLY
 )

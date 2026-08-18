@@ -181,4 +181,12 @@ object AppModule {
     fun provideExchangeRateDao(db: CashFlowDatabase): com.hevincj.cashflow.data.local.dao.ExchangeRateDao {
         return db.exchangeRateDao
     }
+
+    @Provides
+    @Singleton
+    fun provideUpdateRepository(
+        githubApi: com.hevincj.cashflow.data.remote.api.GithubApi
+    ): com.hevincj.cashflow.domain.repository.UpdateRepository {
+        return com.hevincj.cashflow.data.repository.UpdateRepositoryImpl(githubApi)
+    }
 }

@@ -16,16 +16,65 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.hevincj.cashflow.domain.repository.UpdateRepository
+import com.hevincj.cashflow.utils.ApkDownloader
+import com.hevincj.cashflow.utils.DownloadStatus
+import com.hevincj.cashflow.BuildConfig
+
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val themeManager: ThemeManager,
     private val transactionRepository: TransactionRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val updateRepository: UpdateRepository,
+    private val apkDownloader: ApkDownloader
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state.asStateFlow()
+
+    fun checkForUpdates(isManualCheck: Boolean = true) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isCheckingUpdate = true, updateMessage = null)
+            val currentVersion = BuildConfig.VERSION_NAME
+            updateRepository.checkForUpdate(currentVersion)
+                .onSuccess { updateInfo ->
+                    _state.value = _state.value.copy(
+                        isCheckingUpdate = false,
+                        updateInfo = if (updateInfo.isUpdateAvailable) updateInfo else null,
+                        updateMessage = if (!updateInfo.isUpdateAvailable && isManualCheck) {
+                            "You are on the latest version (v$currentVersion)"
+                        } else null
+                    )
+                }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        isCheckingUpdate = false,
+                        updateMessage = if (isManualCheck) "Failed to check for updates: ${error.localizedMessage ?: "Network error"}" else null
+                    )
+                }
+        }
+    }
+
+    fun startDownload(downloadUrl: String, versionName: String) {
+        viewModelScope.launch {
+            apkDownloader.downloadApk(downloadUrl, versionName).collect { status ->
+                _state.value = _state.value.copy(downloadStatus = status)
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _state.value = _state.value.copy(
+            updateInfo = null,
+            downloadStatus = DownloadStatus.Idle
+        )
+    }
+
+    fun clearUpdateMessage() {
+        _state.value = _state.value.copy(updateMessage = null)
+    }
 
     init {
         viewModelScope.launch {

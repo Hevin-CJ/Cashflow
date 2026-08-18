@@ -38,6 +38,7 @@ import com.hevincj.cashflow.domain.models.TransactionCategory
 import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
 import com.hevincj.cashflow.domain.repository.TransactionRepository
 import com.hevincj.cashflow.domain.repository.BudgetRepository
+import com.hevincj.cashflow.domain.repository.RecurringExpenseRepository
 import java.time.ZoneId
 
 @HiltViewModel
@@ -46,6 +47,7 @@ class HomeViewModel @Inject constructor(
     private val addTransactionUseCase: AddTransactionUseCase,
     private val deleteTransactionUseCase: DeleteTransactionUseCase,
     private val repository: TransactionRepository,
+    private val recurringExpenseRepository: RecurringExpenseRepository,
     private val networkMonitor: com.hevincj.cashflow.utils.NetworkMonitor,
     private val budgetRepository: BudgetRepository,
     private val processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase,
@@ -59,6 +61,7 @@ class HomeViewModel @Inject constructor(
     private var budgets: List<com.hevincj.cashflow.domain.models.Budget> = emptyList()
     private var syncJob: kotlinx.coroutines.Job? = null
     private var isInitialSyncRunning = false
+    private var isInitialLocalLoadDone = false
 
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
@@ -77,7 +80,7 @@ class HomeViewModel @Inject constructor(
 
     @OptIn(FlowPreview::class)
     val filteredTransactions: StateFlow<kotlinx.collections.immutable.ImmutableList<Transaction>> = combine(
-        state.map { it.transactions }.distinctUntilChanged().debounce(100L),
+        getTransactionsUseCase().distinctUntilChanged().debounce(100L),
         _searchQuery,
         _selectedCategory
     ) { transactions, query, category ->
@@ -121,11 +124,11 @@ class HomeViewModel @Inject constructor(
             ) { transactions, budgetList ->
                 Pair(transactions, budgetList)
             }
-                .debounce(20L)
                 .flowOn(defaultDispatcher)
                 .collect { (transactions, budgetList) ->
                     allTransactions = transactions
                     budgets = budgetList
+                    isInitialLocalLoadDone = true
                     computeTotals()
                 }
         }
@@ -145,7 +148,7 @@ class HomeViewModel @Inject constructor(
                     } else {
                         _state.value = _state.value.copy(
                             error = "No internet connection",
-                            isLoading = false
+                            isLoading = if (!isInitialLocalLoadDone) true else false
                         )
                     }
                 }
@@ -160,15 +163,34 @@ class HomeViewModel @Inject constructor(
                 isInitialSyncRunning = true
                 _state.value = _state.value.copy(isLoading = true)
             }
+
+            // --- PASS 1: Immediate local evaluation (0ms latency, works 100% offline) ---
             try {
                 processRecurringExpensesUseCase()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+
+            // --- PASS 2: Cloud Sync & Post-Sync Processing ---
+            val subSyncError = try {
+                recurringExpenseRepository.syncRecurringExpenses()
+            } catch (e: Exception) {
+                null
+            }
+
+            // Re-evaluate if new/updated blueprints were fetched from server
+            if (subSyncError == null) {
+                try {
+                    processRecurringExpensesUseCase()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
             val syncError = repository.syncTransactions(limit)
             val budgetSyncError = budgetRepository.syncBudgets()
             isInitialSyncRunning = false
-            val finalError = syncError ?: budgetSyncError
+            val finalError = syncError ?: budgetSyncError ?: subSyncError
             val isSessionExpired = finalError?.contains("code 401") == true
             if (isSessionExpired) {
                 authRepository.logout()
@@ -254,7 +276,7 @@ class HomeViewModel @Inject constructor(
                     totalExpense = expense,
                     totalBalance = balance,
                     exceededBudgets = exceeded.toImmutableList(),
-                    isLoading = if (sortedTransactions.isNotEmpty()) false else _state.value.isLoading
+                    isLoading = false
                 )
             }
         }

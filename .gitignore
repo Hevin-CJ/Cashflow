@@ -13,6 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+keystore.properties
+*.jks
+*.keystore
 /graphify-out
 /.agents
 
@@ -24,6 +27,7 @@ local.properties
 .md/
 .py/
 *.md
+!README.md
 openspec/
 specs/
 directives/
