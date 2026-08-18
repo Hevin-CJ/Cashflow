@@ -40,3 +40,4 @@ execution/
 *.iml
 *.ipr
 *.iws
+.kotlin/errors
