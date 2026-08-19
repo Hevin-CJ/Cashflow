@@ -59,10 +59,10 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
             echo "No previous tag found. Generating changelog from recent commits."
-            CHANGES=$(git log --pretty=format:"* %s" --no-merges -n 20)
+            CHANGES=$(git log --pretty=format:"* %s" --no-merges -n 20 | grep -viE "^(\* )?(v?[0-9]+\.[0-9]+(\.[0-9]+)?(\s*release)?|release\s*v?[0-9]|bump\s+version|prepare\s+release)" || echo "")
           else
             echo "Previous tag found: $PREV_TAG"
-            CHANGES=$(git log ${PREV_TAG}..HEAD --pretty=format:"* %s" --no-merges)
+            CHANGES=$(git log ${PREV_TAG}..HEAD --pretty=format:"* %s" --no-merges | grep -viE "^(\* )?(v?[0-9]+\.[0-9]+(\.[0-9]+)?(\s*release)?|release\s*v?[0-9]|bump\s+version|prepare\s+release)" || echo "")
           fi
 
           if [ -z "$CHANGES" ]; then

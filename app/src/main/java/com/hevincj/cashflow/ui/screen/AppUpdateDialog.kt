@@ -131,29 +131,49 @@ fun AppUpdateDialog(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
+                }
 
-                    if (updateInfo.isDeltaPatch && updateInfo.patchSize != null && updateInfo.patchSize > 0) {
-                        val sizeInMb = updateInfo.patchSize.toDouble() / (1024 * 1024)
-                        val df = DecimalFormat("#.#")
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = PositiveGreen.copy(alpha = if (isDark) 0.25f else 0.12f)
+                // Data Savings / Size Banner
+                if (updateInfo.isDeltaPatch && updateInfo.patchSize != null && updateInfo.patchSize > 0 && updateInfo.apkSize > 0) {
+                    val patchMb = updateInfo.patchSize.toDouble() / (1024 * 1024)
+                    val fullMb = updateInfo.apkSize.toDouble() / (1024 * 1024)
+                    val savedPercent = (((updateInfo.apkSize - updateInfo.patchSize).toDouble() / updateInfo.apkSize) * 100).toInt().coerceIn(1, 99)
+                    val df = DecimalFormat("#.#")
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = PositiveGreen.copy(alpha = if (isDark) 0.2f else 0.1f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PositiveGreen.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = "Patch: ${df.format(sizeInMb)} MB",
+                                text = "⚡ Full: ${df.format(fullMb)} MB ➔ Patch: ${df.format(patchMb)} MB (Save ${savedPercent}%)",
                                 color = PositiveGreen,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                    } else if (updateInfo.apkSize > 0) {
-                        val sizeInMb = updateInfo.apkSize.toDouble() / (1024 * 1024)
-                        val df = DecimalFormat("#.#")
+                    }
+                } else if (updateInfo.apkSize > 0) {
+                    val sizeInMb = updateInfo.apkSize.toDouble() / (1024 * 1024)
+                    val df = DecimalFormat("#.#")
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isDark) Color(0xFF2C2C2E) else Color(0xFFF2F2F7),
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
                         Text(
-                            text = "(${df.format(sizeInMb)} MB)",
+                            text = "📦 Full Package: ${df.format(sizeInMb)} MB",
                             color = TextSecondary,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }

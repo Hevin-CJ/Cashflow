@@ -11,24 +11,28 @@ class UpdateRepositoryImpl @Inject constructor(
     private val githubApi: GithubApi
 ) : UpdateRepository {
 
+    private val semanticVersionRegex = Regex("""(\d+\.\d+(\.\d+)?)""")
+    private val versionLinePattern = Regex(
+        """^\s*(v?\d+\.\d+(\.\d+)?\s*(release)?|release\s*v?\d+\.\d+(\.\d+)?|bump\s+version.*|prepare\s+release.*)$""",
+        RegexOption.IGNORE_CASE
+    )
+
     override suspend fun checkForUpdate(currentVersionName: String): Result<AppUpdateInfo> {
         return try {
             val release = githubApi.getLatestRelease()
             val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
                 ?: release.assets.firstOrNull()
 
-            val cleanCurrent = currentVersionName.trim().removePrefix("v").removePrefix("V")
-            val cleanRemote = release.tagName.trim().removePrefix("v").removePrefix("V")
+            val cleanCurrent = semanticVersionRegex.find(currentVersionName)?.value
+                ?: currentVersionName.trim().removePrefix("v").removePrefix("V")
+            val cleanRemote = semanticVersionRegex.find(release.tagName)?.value
+                ?: release.tagName.trim().removePrefix("v").removePrefix("V")
 
-            val patchAsset = release.assets.firstOrNull { asset ->
-                val name = asset.name.lowercase()
-                name.endsWith(".patch") && (
-                    name.contains("patch-v${cleanCurrent}-to-v${cleanRemote}") ||
-                    name.contains("patch-${cleanCurrent}-to-${cleanRemote}") ||
-                    name.contains("patch-v${cleanCurrent}-to-${cleanRemote}") ||
-                    name.contains("patch-${cleanCurrent}-to-v${cleanRemote}")
-                )
-            }
+            val patchPattern = Regex(
+                """^patch-v?${Regex.escape(cleanCurrent)}-to-v?${Regex.escape(cleanRemote)}\.(patch|hdiff)$""",
+                RegexOption.IGNORE_CASE
+            )
+            val patchAsset = release.assets.firstOrNull { patchPattern.matches(it.name.trim()) }
 
             val isNewer = isNewerVersion(remoteTag = release.tagName, currentVersion = currentVersionName)
             val updateInfo = AppUpdateInfo(
@@ -48,7 +52,7 @@ class UpdateRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun formatReleaseNotes(rawBody: String?): String {
+    internal fun formatReleaseNotes(rawBody: String?): String {
         if (rawBody.isNullOrBlank()) return "• Bug fixes and performance improvements."
 
         val cleaned = rawBody
@@ -62,10 +66,13 @@ class UpdateRepositoryImpl @Inject constructor(
                     .trim()
             }
             .filter { line ->
-                line.isNotEmpty() && !line.equals("What's Changed", ignoreCase = true)
+                val trimmed = line.trimStart('*', '-', '•', ' ').trim()
+                trimmed.isNotEmpty() &&
+                !trimmed.equals("What's Changed", ignoreCase = true) &&
+                !versionLinePattern.matches(trimmed)
             }
             .joinToString("\n") { line ->
-                val trimmed = line.trimStart('*', '-', '•', ' ')
+                val trimmed = line.trimStart('*', '-', '•', ' ').trim()
                 "• $trimmed"
             }
             .trim()
@@ -77,9 +84,11 @@ class UpdateRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun isNewerVersion(remoteTag: String, currentVersion: String): Boolean {
-        val cleanRemote = remoteTag.trim().removePrefix("v").removePrefix("V")
-        val cleanCurrent = currentVersion.trim().removePrefix("v").removePrefix("V")
+    internal fun isNewerVersion(remoteTag: String, currentVersion: String): Boolean {
+        val cleanRemote = semanticVersionRegex.find(remoteTag)?.value
+            ?: remoteTag.trim().removePrefix("v").removePrefix("V")
+        val cleanCurrent = semanticVersionRegex.find(currentVersion)?.value
+            ?: currentVersion.trim().removePrefix("v").removePrefix("V")
 
         val remoteParts = cleanRemote.split(".").mapNotNull { it.toIntOrNull() }
         val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }

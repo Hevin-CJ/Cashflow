@@ -88,6 +88,14 @@
                 android:resource="@xml/balance_widget_info" />
         </receiver>
 
+        <receiver
+            android:name="com.hevincj.cashflow.utils.UpdateInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.hevincj.cashflow.ACTION_INSTALL_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
         <meta-data
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />

@@ -95,12 +95,27 @@ class ProfileViewModel @Inject constructor(
                 _state.value = _state.value.copy(themeMode = mode)
             }
         }
+        viewModelScope.launch {
+            userRepository.getUserProfileFlow().collect { profile ->
+                if (profile != null) {
+                    _state.value = _state.value.copy(
+                        username = profile.username,
+                        firstName = profile.firstName ?: "",
+                        lastName = profile.lastName ?: "",
+                        phoneNumber = profile.phoneNumber ?: "",
+                        profileImage = profile.profileImage?.takeIf { it.isNotEmpty() }
+                    )
+                }
+            }
+        }
         fetchUserProfile()
     }
 
     fun fetchUserProfile() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null)
+            if (_state.value.username.isEmpty()) {
+                _state.value = _state.value.copy(isLoading = true, error = null)
+            }
             userRepository.getUserProfile()
                 .onSuccess { profile ->
                     _state.value = _state.value.copy(
@@ -115,7 +130,7 @@ class ProfileViewModel @Inject constructor(
                 .onFailure { exception ->
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        error = exception.message ?: "Failed to fetch user profile"
+                        error = if (_state.value.username.isEmpty()) (exception.message ?: "Failed to fetch user profile") else null
                     )
                 }
         }

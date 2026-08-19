@@ -504,9 +504,14 @@ private fun ProfileHeader(
 }
 
 fun base64ToBitmap(base64Str: String?): android.graphics.Bitmap? {
-    if (base64Str.isNullOrEmpty()) return null
+    if (base64Str.isNullOrBlank()) return null
     return try {
-        val bytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+        val cleanBase64 = if (base64Str.contains(",")) {
+            base64Str.substringAfter(",")
+        } else {
+            base64Str
+        }.replace("\n", "").replace("\r", "").trim()
+        val bytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT or android.util.Base64.NO_WRAP)
         android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     } catch (e: Exception) {
         e.printStackTrace()

@@ -50,6 +50,9 @@ class ProfileViewModelTest {
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(themeManager.themeMode).thenReturn(MutableStateFlow(ThemeMode.SYSTEM))
+        whenever(userRepository.getUserProfileFlow()).thenReturn(
+            kotlinx.coroutines.flow.flowOf(UserProfile("leslie@gmail.com", "Leslie", "Alexander", "123456", null))
+        )
         kotlinx.coroutines.runBlocking {
             whenever(userRepository.getUserProfile()).thenReturn(
                 Result.success(UserProfile("leslie@gmail.com", "Leslie", "Alexander", "123456", null))
@@ -72,5 +75,15 @@ class ProfileViewModelTest {
 
         verify(authRepository).logout()
         assertTrue(viewModel.state.value.isLoggedOut)
+    }
+
+    @Test
+    fun testUserProfileFlowPopulatesStateImmediately() = runTest {
+        advanceUntilIdle()
+        val state = viewModel.state.value
+        org.junit.Assert.assertEquals("leslie@gmail.com", state.username)
+        org.junit.Assert.assertEquals("Leslie", state.firstName)
+        org.junit.Assert.assertEquals("Alexander", state.lastName)
+        org.junit.Assert.assertEquals("123456", state.phoneNumber)
     }
 }

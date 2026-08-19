@@ -80,6 +80,7 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun logout() {
         withContext(Dispatchers.IO) {
             tokenManager.clearToken()
+            database.userProfileDao.clearProfile()
             database.clearAllTables()
         }
     }

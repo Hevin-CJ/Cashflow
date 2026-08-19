@@ -1,39 +1,58 @@
 package com.hevincj.cashflow.data.repository
 
+import com.hevincj.cashflow.data.local.dao.UserProfileDao
+import com.hevincj.cashflow.data.local.entity.UserProfileEntity
 import com.hevincj.cashflow.data.remote.api.UserApi
 import com.hevincj.cashflow.data.remote.models.UpdateProfileRequestDto
 import com.hevincj.cashflow.domain.models.UserProfile
 import com.hevincj.cashflow.domain.repository.UserRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class UserRepositoryImpl @Inject constructor(
-    private val api: UserApi
+    private val api: UserApi,
+    private val userProfileDao: UserProfileDao
 ) : UserRepository {
+
+    override fun getUserProfileFlow(): Flow<UserProfile?> {
+        return userProfileDao.getUserProfileFlow().map { it?.toDomain() }
+    }
 
     override suspend fun getUserProfile(): Result<UserProfile> = withContext(Dispatchers.IO) {
         try {
             val response = api.getUserProfile()
             if (response.isSuccessful) {
                 val body = response.body() ?: throw Exception("Empty response body")
-                Result.success(
-                    UserProfile(
-                        username = body.username,
-                        firstName = body.firstName,
-                        lastName = body.lastName,
-                        phoneNumber = body.phoneNumber,
-                        profileImage = body.profileImage
-                    )
+                val profile = UserProfile(
+                    username = body.username,
+                    firstName = body.firstName,
+                    lastName = body.lastName,
+                    phoneNumber = body.phoneNumber,
+                    profileImage = body.profileImage
                 )
+                userProfileDao.insertOrUpdateProfile(UserProfileEntity.fromDomain(profile))
+                Result.success(profile)
             } else {
-                val errorMsg = response.errorBody()?.string() ?: response.message()
-                Result.failure(Exception(errorMsg))
+                val cached = userProfileDao.getUserProfile()
+                if (cached != null) {
+                    Result.success(cached.toDomain())
+                } else {
+                    val errorMsg = response.errorBody()?.string() ?: response.message()
+                    Result.failure(Exception(errorMsg))
+                }
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            val cached = userProfileDao.getUserProfile()
+            if (cached != null) {
+                Result.success(cached.toDomain())
+            } else {
+                Result.failure(e)
+            }
         }
     }
 
@@ -48,15 +67,15 @@ class UserRepositoryImpl @Inject constructor(
             val response = api.updateProfile(requestDto)
             if (response.isSuccessful) {
                 val body = response.body() ?: throw Exception("Empty response body")
-                Result.success(
-                    UserProfile(
-                        username = body.username,
-                        firstName = body.firstName,
-                        lastName = body.lastName,
-                        phoneNumber = body.phoneNumber,
-                        profileImage = body.profileImage
-                    )
+                val profile = UserProfile(
+                    username = body.username,
+                    firstName = body.firstName,
+                    lastName = body.lastName,
+                    phoneNumber = body.phoneNumber,
+                    profileImage = body.profileImage
                 )
+                userProfileDao.insertOrUpdateProfile(UserProfileEntity.fromDomain(profile))
+                Result.success(profile)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
                 Result.failure(Exception(errorMsg))

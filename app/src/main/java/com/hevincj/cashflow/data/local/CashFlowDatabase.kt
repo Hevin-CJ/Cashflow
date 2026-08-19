@@ -17,15 +17,19 @@ import com.hevincj.cashflow.data.local.entity.RecurringExpenseEntity
 import com.hevincj.cashflow.data.local.dao.ExchangeRateDao
 import com.hevincj.cashflow.data.local.entity.ExchangeRateEntity
 
+import com.hevincj.cashflow.data.local.dao.UserProfileDao
+import com.hevincj.cashflow.data.local.entity.UserProfileEntity
+
 @Database(
     entities = [
         TransactionEntity::class,
         CreditCardEntity::class,
         BudgetEntity::class,
         RecurringExpenseEntity::class,
-        ExchangeRateEntity::class
+        ExchangeRateEntity::class,
+        UserProfileEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,6 +39,7 @@ abstract class CashFlowDatabase : RoomDatabase() {
     abstract val budgetDao: BudgetDao
     abstract val recurringExpenseDao: RecurringExpenseDao
     abstract val exchangeRateDao: ExchangeRateDao
+    abstract val userProfileDao: UserProfileDao
 
     companion object {
         const val DATABASE_NAME = "cashflow_db"

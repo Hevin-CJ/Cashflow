@@ -163,8 +163,17 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideUserRepository(api: UserApi): UserRepository {
-        return UserRepositoryImpl(api)
+    fun provideUserProfileDao(db: CashFlowDatabase): com.hevincj.cashflow.data.local.dao.UserProfileDao {
+        return db.userProfileDao
+    }
+
+    @Provides
+    @Singleton
+    fun provideUserRepository(
+        api: UserApi,
+        userProfileDao: com.hevincj.cashflow.data.local.dao.UserProfileDao
+    ): UserRepository {
+        return UserRepositoryImpl(api, userProfileDao)
     }
 
     @Provides
