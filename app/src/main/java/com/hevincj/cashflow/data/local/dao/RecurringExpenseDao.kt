@@ -27,6 +27,12 @@ interface RecurringExpenseDao {
     @Update
     suspend fun updateRecurringExpense(recurringExpense: RecurringExpenseEntity)
 
+    @Query("UPDATE recurring_expenses SET nextDueDate = :nextDueDate, lastProcessedDate = :lastProcessedDate WHERE id = :id")
+    suspend fun updateBillingPointersById(id: Int, nextDueDate: Long, lastProcessedDate: Long?)
+
+    @Query("UPDATE recurring_expenses SET nextDueDate = :nextDueDate, lastProcessedDate = :lastProcessedDate WHERE serverId = :serverId")
+    suspend fun updateBillingPointersByServerId(serverId: String, nextDueDate: Long, lastProcessedDate: Long?)
+
     @Query("DELETE FROM recurring_expenses WHERE id = :id")
     suspend fun deleteById(id: Int)
 

@@ -9,7 +9,7 @@ import com.hevincj.cashflow.domain.usecase.AddTransactionUseCase
 import com.hevincj.cashflow.domain.usecase.DeleteRecurringExpenseUseCase
 import com.hevincj.cashflow.domain.usecase.GetRecurringExpensesUseCase
 import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
-import com.hevincj.cashflow.data.worker.RecurringExpenseScheduler
+import com.hevincj.cashflow.data.worker.RecurringExpenseSyncScheduler
 import com.hevincj.cashflow.ui.screen.state.SubscriptionManagerUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,7 @@ class SubscriptionManagerViewModel @Inject constructor(
     private val deleteRecurringExpenseUseCase: DeleteRecurringExpenseUseCase,
     private val addTransactionUseCase: AddTransactionUseCase,
     private val repository: RecurringExpenseRepository,
-    private val scheduler: RecurringExpenseScheduler,
+    private val syncScheduler: RecurringExpenseSyncScheduler,
     private val processRecurringExpensesUseCase: ProcessRecurringExpensesUseCase
 ) : ViewModel() {
 
@@ -71,8 +71,6 @@ class SubscriptionManagerViewModel @Inject constructor(
                 _error.value = syncError
             }
             _isSyncing.value = false
-
-            scheduler.triggerOneTimeCheck()
         }
     }
 

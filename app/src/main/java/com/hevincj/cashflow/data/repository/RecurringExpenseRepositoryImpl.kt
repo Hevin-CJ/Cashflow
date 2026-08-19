@@ -77,6 +77,21 @@ class RecurringExpenseRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateBillingPointers(
+        expenseId: String,
+        localId: Int,
+        nextDueDate: Long,
+        lastProcessedDate: Long?
+    ) = withContext(Dispatchers.IO) {
+        if (localId > 0) {
+            dao.updateBillingPointersById(localId, nextDueDate, lastProcessedDate)
+        } else if (expenseId.all { it.isDigit() } && expenseId.isNotEmpty()) {
+            dao.updateBillingPointersById(expenseId.toInt(), nextDueDate, lastProcessedDate)
+        } else {
+            dao.updateBillingPointersByServerId(expenseId, nextDueDate, lastProcessedDate)
+        }
+    }
+
     override suspend fun deleteRecurringExpense(recurringExpense: RecurringExpense) = withContext(Dispatchers.IO) {
         if (recurringExpense.id.isEmpty()) return@withContext
         val isLocalId = recurringExpense.id.all { it.isDigit() }

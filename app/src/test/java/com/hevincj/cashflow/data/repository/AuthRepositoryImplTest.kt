@@ -34,11 +34,15 @@ class AuthRepositoryImplTest {
     @Mock
     lateinit var database: CashFlowDatabase
 
+    @Mock
+    lateinit var userProfileDao: com.hevincj.cashflow.data.local.dao.UserProfileDao
+
     private lateinit var repository: AuthRepositoryImpl
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
+        whenever(database.userProfileDao).thenReturn(userProfileDao)
         repository = AuthRepositoryImpl(api, tokenManager, database)
     }
 

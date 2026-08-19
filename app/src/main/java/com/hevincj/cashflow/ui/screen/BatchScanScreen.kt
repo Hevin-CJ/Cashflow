@@ -248,12 +248,30 @@ private fun BatchScanContent(
     }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 100) }
+    val toneGenerator = remember {
+        try {
+            ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+        } catch (e: Exception) {
+            Log.e("BatchScanScreen", "ToneGenerator initialization failed", e)
+            null
+        }
+    }
+
+    val barcodeScanner = remember {
+        val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_EAN_13
+            )
+            .build()
+        BarcodeScanning.getClient(options)
+    }
 
     DisposableEffect(Unit) {
         onDispose {
             cameraExecutor.shutdown()
-            toneGenerator.release()
+            toneGenerator?.release()
+            barcodeScanner.close()
         }
     }
 
@@ -262,7 +280,7 @@ private fun BatchScanContent(
         viewModel.eventFlow.collect { event ->
             when (event) {
                 is ScanEvent.BeepAndVibrate -> {
-                    toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
                     triggerVibration(context)
                 }
                 is ScanEvent.Vibrate -> {
@@ -292,61 +310,62 @@ private fun BatchScanContent(
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                     cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
+                        try {
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
 
-                        val resolutionSelector = ResolutionSelector.Builder()
-                            .setResolutionStrategy(
-                                ResolutionStrategy(
-                                    Size(1280, 720),
-                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                            val resolutionSelector = ResolutionSelector.Builder()
+                                .setResolutionStrategy(
+                                    ResolutionStrategy(
+                                        Size(1280, 720),
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                    )
                                 )
-                            )
-                            .build()
+                                .build()
 
-                        val imageAnalysis = ImageAnalysis.Builder()
-                            .setResolutionSelector(resolutionSelector)
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
+                            val imageAnalysis = ImageAnalysis.Builder()
+                                .setResolutionSelector(resolutionSelector)
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
 
-                        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                            processImageProxy(
-                                imageProxy = imageProxy,
-                                onSuccess = { barcode ->
-                                    val barcodeValue = barcode.rawValue ?: return@processImageProxy
-                                    val isUrl = barcodeValue.startsWith("http://", ignoreCase = true) ||
-                                            barcodeValue.startsWith("https://", ignoreCase = true) ||
-                                            barcodeValue.startsWith("www.", ignoreCase = true) ||
-                                            barcodeValue.contains("://", ignoreCase = true) ||
-                                            barcodeValue.startsWith("upi://", ignoreCase = true)
-                                    val isFullBarcode = barcodeValue.length >= 12 && barcodeValue.all { it.isDigit() }
-                                    if (!isUrl && isFullBarcode) {
-                                        val rect = barcode.boundingBox
-                                        if (rect != null) {
-                                            // Centering constraint (middle 70% width and 60% height region)
-                                            val marginX = imageProxy.width * 0.15f
-                                            val marginY = imageProxy.height * 0.20f
-                                            val isFullyInside = rect.left >= marginX &&
-                                                    rect.right <= (imageProxy.width - marginX) &&
-                                                    rect.top >= marginY &&
-                                                    rect.bottom <= (imageProxy.height - marginY)
+                            imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                processImageProxy(
+                                    scanner = barcodeScanner,
+                                    imageProxy = imageProxy,
+                                    onSuccess = { barcode ->
+                                        val barcodeValue = barcode.rawValue ?: return@processImageProxy
+                                        val isUrl = barcodeValue.startsWith("http://", ignoreCase = true) ||
+                                                barcodeValue.startsWith("https://", ignoreCase = true) ||
+                                                barcodeValue.startsWith("www.", ignoreCase = true) ||
+                                                barcodeValue.contains("://", ignoreCase = true) ||
+                                                barcodeValue.startsWith("upi://", ignoreCase = true)
+                                        val isFullBarcode = barcodeValue.length >= 12 && barcodeValue.all { it.isDigit() }
+                                        if (!isUrl && isFullBarcode) {
+                                            val rect = barcode.boundingBox
+                                            if (rect != null) {
+                                                // Centering constraint (middle 70% width and 60% height region)
+                                                val marginX = imageProxy.width * 0.15f
+                                                val marginY = imageProxy.height * 0.20f
+                                                val isFullyInside = rect.left >= marginX &&
+                                                        rect.right <= (imageProxy.width - marginX) &&
+                                                        rect.top >= marginY &&
+                                                        rect.bottom <= (imageProxy.height - marginY)
 
-                                            if (isFullyInside) {
-                                                coroutineScope.launch(Dispatchers.Main) {
-                                                    viewModel.onBarcodeScanned(barcodeValue)
+                                                if (isFullyInside) {
+                                                    coroutineScope.launch(Dispatchers.Main) {
+                                                        viewModel.onBarcodeScanned(barcodeValue)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                            )
-                        }
+                                )
+                            }
 
-                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-                        try {
                             cameraProvider.unbindAll()
                             val camera = cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
@@ -356,7 +375,7 @@ private fun BatchScanContent(
                             )
                             cameraControlState = camera.cameraControl
                         } catch (e: Exception) {
-                            Log.e("BatchScanScreen", "Camera binding failed", e)
+                            Log.e("BatchScanScreen", "Camera setup or binding failed", e)
                         }
                     }, ContextCompat.getMainExecutor(ctx))
 
@@ -666,33 +685,31 @@ private fun Modifier.batchScannerShimmerEffect(
 
 @SuppressLint("UnsafeOptInUsageError")
 private fun processImageProxy(
+    scanner: com.google.mlkit.vision.barcode.BarcodeScanner,
     imageProxy: ImageProxy,
     onSuccess: (Barcode) -> Unit
 ) {
-    val mediaImage = imageProxy.image
-    if (mediaImage != null) {
-        val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(
-                Barcode.FORMAT_UPC_A,
-                Barcode.FORMAT_EAN_13
-            )
-            .build()
-        val scanner = BarcodeScanning.getClient(options)
-
-        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-        scanner.process(image)
-            .addOnSuccessListener { barcodes ->
-                for (barcode in barcodes) {
-                    onSuccess(barcode)
+    try {
+        val mediaImage = imageProxy.image
+        if (mediaImage != null) {
+            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            scanner.process(image)
+                .addOnSuccessListener { barcodes ->
+                    for (barcode in barcodes) {
+                        onSuccess(barcode)
+                    }
                 }
-            }
-            .addOnFailureListener {
-                Log.e("BatchScanScreen", "Barcode analysis failed", it)
-            }
-            .addOnCompleteListener {
-                imageProxy.close()
-            }
-    } else {
+                .addOnFailureListener {
+                    Log.e("BatchScanScreen", "Barcode analysis failed", it)
+                }
+                .addOnCompleteListener {
+                    imageProxy.close()
+                }
+        } else {
+            imageProxy.close()
+        }
+    } catch (e: Exception) {
+        Log.e("BatchScanScreen", "Exception in processImageProxy", e)
         imageProxy.close()
     }
 }

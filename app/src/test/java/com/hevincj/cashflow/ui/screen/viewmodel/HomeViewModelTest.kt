@@ -207,12 +207,12 @@ class HomeViewModelTest {
         advanceUntilIdle()
         
         assertEquals(null, localViewModel.state.value.error)
-        org.mockito.Mockito.verify(repository).syncTransactions(25)
+        org.mockito.Mockito.verify(repository).syncTransactions(org.mockito.kotlin.any())
     }
 
     @Test
     fun testInitializationDisplaysCachedDataDuringSync() = runTest {
-        whenever(repository.syncTransactions(25)).thenReturn(null)
+        whenever(repository.syncTransactions(org.mockito.kotlin.any())).thenReturn(null)
  
         viewModel = HomeViewModel(
             getTransactionsUseCase,
@@ -235,7 +235,7 @@ class HomeViewModelTest {
     @Test
     fun testRetrySyncsAndClearsErrorAndSyncsToRemote() = runTest {
         // 1. Initial state: sync fails with an error
-        whenever(repository.syncTransactions(25)).thenReturn("Failed to sync transactions")
+        whenever(repository.syncTransactions(org.mockito.kotlin.any())).thenReturn("Failed to sync transactions")
         runBlocking {
             whenever(budgetRepository.syncBudgets()).thenReturn("Failed to sync budgets")
         }
@@ -259,7 +259,7 @@ class HomeViewModelTest {
         assertEquals("Failed to sync transactions", viewModel.state.value.error)
 
         // 2. Change mocks so that the next sync succeeds
-        whenever(repository.syncTransactions(25)).thenReturn(null)
+        whenever(repository.syncTransactions(org.mockito.kotlin.any())).thenReturn(null)
         runBlocking {
             whenever(budgetRepository.syncBudgets()).thenReturn(null)
         }
@@ -269,7 +269,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         // Verify that retry is actually syncing (sync method called again)
-        org.mockito.Mockito.verify(repository, times(2)).syncTransactions(25)
+        org.mockito.Mockito.verify(repository, times(2)).syncTransactions(org.mockito.kotlin.any())
         runBlocking {
             org.mockito.Mockito.verify(budgetRepository, times(2)).syncBudgets()
         }

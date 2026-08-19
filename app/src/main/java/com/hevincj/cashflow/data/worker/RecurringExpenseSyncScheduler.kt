@@ -21,7 +21,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "immediate_recurring_processing",
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 immediateRequest
             )
         } catch (e: Exception) {
@@ -31,8 +31,6 @@ class RecurringExpenseSyncScheduler @Inject constructor(
 
     fun schedulePeriodicRecurringProcessing() {
         try {
-            triggerImmediateProcessing()
-
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
                 .build()
@@ -50,7 +48,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 "periodic_recurring_processing",
-                ExistingPeriodicWorkPolicy.UPDATE,
+                ExistingPeriodicWorkPolicy.KEEP,
                 periodicRequest
             )
         } catch (e: Exception) {

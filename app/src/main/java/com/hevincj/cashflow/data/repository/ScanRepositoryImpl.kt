@@ -27,29 +27,36 @@ class ScanRepositoryImpl @Inject constructor(
 
     override suspend fun scanSingleBarcode(): String? = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { continuation ->
-            val options = GmsBarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-                .enableAutoZoom()
-                .build()
+            try {
+                val options = GmsBarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
+                    .enableAutoZoom()
+                    .build()
 
-            val scanner = GmsBarcodeScanning.getClient(context, options)
+                val scanner = GmsBarcodeScanning.getClient(context, options)
 
-            scanner.startScan()
-                .addOnSuccessListener { barcode ->
-                    if (continuation.isActive) {
-                        continuation.resume(barcode.rawValue)
+                scanner.startScan()
+                    .addOnSuccessListener { barcode ->
+                        if (continuation.isActive) {
+                            continuation.resume(barcode.rawValue)
+                        }
                     }
-                }
-                .addOnFailureListener { exception ->
-                    if (continuation.isActive) {
-                        continuation.resumeWithException(exception)
+                    .addOnFailureListener { exception ->
+                        if (continuation.isActive) {
+                            continuation.resume(null)
+                        }
                     }
-                }
-                .addOnCanceledListener {
-                    if (continuation.isActive) {
-                        continuation.resume(null)
+                    .addOnCanceledListener {
+                        if (continuation.isActive) {
+                            continuation.resume(null)
+                        }
                     }
+            } catch (e: Exception) {
+                android.util.Log.e("ScanRepositoryImpl", "Failed to start Google Code Scanner", e)
+                if (continuation.isActive) {
+                    continuation.resume(null)
                 }
+            }
         }
     }
 

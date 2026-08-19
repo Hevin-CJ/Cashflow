@@ -6,7 +6,7 @@ import com.hevincj.cashflow.domain.usecase.GetRecurringExpensesUseCase
 import com.hevincj.cashflow.domain.usecase.AddRecurringExpenseUseCase
 import com.hevincj.cashflow.domain.usecase.DeleteRecurringExpenseUseCase
 import com.hevincj.cashflow.domain.usecase.ProcessRecurringExpensesUseCase
-import com.hevincj.cashflow.data.worker.RecurringExpenseScheduler
+import com.hevincj.cashflow.data.worker.RecurringExpenseSyncScheduler
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -46,7 +46,7 @@ class SubscriptionManagerViewModelTest {
     lateinit var repository: RecurringExpenseRepository
 
     @Mock
-    lateinit var scheduler: RecurringExpenseScheduler
+    lateinit var syncScheduler: RecurringExpenseSyncScheduler
 
     private lateinit var viewModel: SubscriptionManagerViewModel
 
@@ -57,31 +57,31 @@ class SubscriptionManagerViewModelTest {
     }
 
     @Test
-    fun testInitializationTriggersSyncAndSchedulerCheck() = runTest {
+    fun testInitializationTriggersSyncAndProcess() = runTest {
         viewModel = SubscriptionManagerViewModel(
             getRecurringExpensesUseCase,
             addRecurringExpenseUseCase,
             deleteRecurringExpenseUseCase,
             addTransactionUseCase,
             repository,
-            scheduler,
+            syncScheduler,
             processRecurringExpensesUseCase
         )
         advanceUntilIdle()
 
         verify(repository).syncRecurringExpenses()
-        verify(scheduler).triggerOneTimeCheck()
+        verify(processRecurringExpensesUseCase).invoke()
     }
 
     @Test
-    fun testSyncTriggersSyncAndSchedulerCheck() = runTest {
+    fun testSyncTriggersSyncAndProcess() = runTest {
         viewModel = SubscriptionManagerViewModel(
             getRecurringExpensesUseCase,
             addRecurringExpenseUseCase,
             deleteRecurringExpenseUseCase,
             addTransactionUseCase,
             repository,
-            scheduler,
+            syncScheduler,
             processRecurringExpensesUseCase
         )
         advanceUntilIdle()
@@ -90,6 +90,6 @@ class SubscriptionManagerViewModelTest {
         advanceUntilIdle()
 
         verify(repository, times(2)).syncRecurringExpenses()
-        verify(scheduler, times(2)).triggerOneTimeCheck()
+        verify(processRecurringExpensesUseCase, times(2)).invoke()
     }
 }

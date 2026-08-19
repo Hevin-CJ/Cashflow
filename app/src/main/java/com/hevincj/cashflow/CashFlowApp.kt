@@ -3,7 +3,7 @@ package com.hevincj.cashflow
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import com.hevincj.cashflow.data.worker.RecurringExpenseScheduler
+import com.hevincj.cashflow.data.worker.RecurringExpenseSyncScheduler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -11,7 +11,7 @@ import javax.inject.Inject
 class CashFlowApp : Application(), Configuration.Provider {
 
     @Inject
-    lateinit var recurringExpenseScheduler: RecurringExpenseScheduler
+    lateinit var recurringExpenseSyncScheduler: RecurringExpenseSyncScheduler
 
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
@@ -23,7 +23,6 @@ class CashFlowApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        recurringExpenseScheduler.schedulePeriodicRecurringCheck()
-        recurringExpenseScheduler.triggerOneTimeCheck()
+        recurringExpenseSyncScheduler.schedulePeriodicRecurringProcessing()
     }
 }

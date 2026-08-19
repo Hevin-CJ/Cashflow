@@ -154,13 +154,13 @@ class AddTransactionViewModelTest {
 
     @Test
     fun testInitializationWithIdLoadsTransactionForEditSanitizesAndCaps() = runTest {
-        viewModel = createViewModel(SavedStateHandle(mapOf("transactionId" to "456")))
+        viewModel = createViewModel(SavedStateHandle(mapOf("transactionId" to "789")))
 
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertTrue(state.isEditMode)
-        assertEquals("456", state.transactionId)
+        assertEquals("789", state.transactionId)
         assertEquals("999999", state.amount)
     }
 
