@@ -29,7 +29,11 @@ class RecurringExpenseWorker @AssistedInject constructor(
             processUseCase()
             Result.success()
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.e(
+                "RecurringExpenseWorker",
+                "Unhandled exception in RecurringExpenseWorker at attempt $runAttemptCount",
+                e
+            )
             if (runAttemptCount < 3) {
                 Result.retry()
             } else {

@@ -55,7 +55,7 @@ class CreditCardRepositoryImpl @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("CreditCardRepository", "Add card backend sync failed: ${e.message}", e)
         }
     }
 
@@ -116,7 +116,7 @@ class CreditCardRepositoryImpl @Inject constructor(
             }
             return null
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("CreditCardRepository", "Sync cards caught exception: ${e.message}", e)
             return when (e) {
                 is java.net.UnknownHostException -> "No internet connection"
                 else -> "Server is unreachable"

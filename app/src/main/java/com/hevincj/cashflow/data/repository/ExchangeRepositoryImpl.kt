@@ -42,9 +42,11 @@ class ExchangeRepositoryImpl @Inject constructor(
                 Result.success(Unit)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
+                com.hevincj.cashflow.utils.CrashLogger.w("ExchangeRepository", "Refresh rates failed for base $base: $errorMsg")
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("ExchangeRepository", "Exception refreshing rates for base $base: ${e.message}", e)
             Result.failure(e)
         }
     }

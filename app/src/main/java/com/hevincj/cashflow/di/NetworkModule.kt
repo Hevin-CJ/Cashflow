@@ -74,7 +74,7 @@ object NetworkModule {
                         response.close()
                     }
                 } catch (e: java.io.IOException) {
-                    android.util.Log.e("NetworkModule", "Retry attempt $attempt failed: ${e.message}", e)
+                    com.hevincj.cashflow.utils.CrashLogger.w("NetworkModule", "Retry attempt $attempt failed for ${request.url.encodedPath}: ${e.message}", e)
                     lastException = e
                     response?.close()
                 }
@@ -83,7 +83,9 @@ object NetworkModule {
                 SystemClock.sleep(delay)
                 delay *= 2
             }
-            throw lastException ?: java.io.IOException("Network processing failed after 3 attempts")
+            val finalEx = lastException ?: java.io.IOException("Network processing failed after 3 attempts for ${request.url.encodedPath}")
+            com.hevincj.cashflow.utils.CrashLogger.e("NetworkModule", "Network retry exhausted for ${request.url.encodedPath}", finalEx)
+            throw finalEx
         }
 
         val certificatePinner = CertificatePinner.Builder()

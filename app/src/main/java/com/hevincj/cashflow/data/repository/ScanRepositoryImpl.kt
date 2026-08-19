@@ -42,6 +42,7 @@ class ScanRepositoryImpl @Inject constructor(
                         }
                     }
                     .addOnFailureListener { exception ->
+                        com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Google Code Scanner failed: ${exception.message}", exception)
                         if (continuation.isActive) {
                             continuation.resume(null)
                         }
@@ -52,7 +53,7 @@ class ScanRepositoryImpl @Inject constructor(
                         }
                     }
             } catch (e: Exception) {
-                android.util.Log.e("ScanRepositoryImpl", "Failed to start Google Code Scanner", e)
+                com.hevincj.cashflow.utils.CrashLogger.e("ScanRepositoryImpl", "Failed to start Google Code Scanner", e)
                 if (continuation.isActive) {
                     continuation.resume(null)
                 }
@@ -74,10 +75,11 @@ class ScanRepositoryImpl @Inject constructor(
                     )
                 }
             } else {
+                com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Barcode lookup unsuccessful for $barcode: ${response.code()}")
                 null
             }
         } catch (e: Exception) {
-            android.util.Log.e("ScanRepositoryImpl", "Error looking up barcode: $barcode", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Error looking up barcode: $barcode", e)
             null
         }
     }
@@ -96,10 +98,11 @@ class ScanRepositoryImpl @Inject constructor(
                     )
                 } ?: emptyList()
             } else {
+                com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Batch barcode lookup unsuccessful: ${response.code()}")
                 emptyList()
             }
         } catch (e: Exception) {
-            android.util.Log.e("ScanRepositoryImpl", "Error in batch lookup", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Error in batch lookup", e)
             emptyList()
         }
     }
@@ -119,10 +122,11 @@ class ScanRepositoryImpl @Inject constructor(
                     description = dto.description
                 )
             } else {
+                com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Analyze receipt unsuccessful: ${response.code()}")
                 null
             }
         } catch (e: Exception) {
-            android.util.Log.e("ScanRepositoryImpl", "Error parsing receipt via backend", e)
+            com.hevincj.cashflow.utils.CrashLogger.e("ScanRepositoryImpl", "Error parsing receipt via backend", e)
             null
         }
     }
@@ -138,10 +142,11 @@ class ScanRepositoryImpl @Inject constructor(
                     )
                 }
             } else {
+                com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Generate UPI QR code unsuccessful: ${response.code()}")
                 null
             }
         } catch (e: Exception) {
-            android.util.Log.e("ScanRepositoryImpl", "Error generating UPI QR code", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Error generating UPI QR code", e)
             null
         }
     }

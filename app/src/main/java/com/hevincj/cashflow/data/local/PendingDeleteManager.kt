@@ -14,50 +14,89 @@ class PendingDeleteManager @Inject constructor(
     }
 
     fun getPendingDeletions(): Set<String> {
-        return sharedPrefs.getStringSet("pending_deletions", emptySet()) ?: emptySet()
+        return try {
+            sharedPrefs.getStringSet("pending_deletions", emptySet()) ?: emptySet()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to get pending deletions", e)
+            emptySet()
+        }
     }
 
     fun addPendingDeletion(serverId: String) {
-        val current = getPendingDeletions().toMutableSet()
-        current.add(serverId)
-        sharedPrefs.edit().putStringSet("pending_deletions", current).apply()
+        try {
+            val current = getPendingDeletions().toMutableSet()
+            current.add(serverId)
+            sharedPrefs.edit().putStringSet("pending_deletions", current).apply()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to add pending deletion for $serverId", e)
+        }
     }
 
     fun removePendingDeletion(serverId: String) {
-        val current = getPendingDeletions().toMutableSet()
-        current.remove(serverId)
-        sharedPrefs.edit().putStringSet("pending_deletions", current).apply()
+        try {
+            val current = getPendingDeletions().toMutableSet()
+            current.remove(serverId)
+            sharedPrefs.edit().putStringSet("pending_deletions", current).apply()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to remove pending deletion for $serverId", e)
+        }
     }
 
     fun getPendingRecurringDeletions(): Set<String> {
-        return sharedPrefs.getStringSet("pending_recurring_deletions", emptySet()) ?: emptySet()
+        return try {
+            sharedPrefs.getStringSet("pending_recurring_deletions", emptySet()) ?: emptySet()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to get pending recurring deletions", e)
+            emptySet()
+        }
     }
 
     fun addPendingRecurringDeletion(serverId: String) {
-        val current = getPendingRecurringDeletions().toMutableSet()
-        current.add(serverId)
-        sharedPrefs.edit().putStringSet("pending_recurring_deletions", current).apply()
+        try {
+            val current = getPendingRecurringDeletions().toMutableSet()
+            current.add(serverId)
+            sharedPrefs.edit().putStringSet("pending_recurring_deletions", current).apply()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to add pending recurring deletion for $serverId", e)
+        }
     }
 
     fun removePendingRecurringDeletion(serverId: String) {
-        val current = getPendingRecurringDeletions().toMutableSet()
-        current.remove(serverId)
-        sharedPrefs.edit().putStringSet("pending_recurring_deletions", current).apply()
+        try {
+            val current = getPendingRecurringDeletions().toMutableSet()
+            current.remove(serverId)
+            sharedPrefs.edit().putStringSet("pending_recurring_deletions", current).apply()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to remove pending recurring deletion for $serverId", e)
+        }
     }
 
     fun getPendingBudgetDeletions(): Set<String> {
-        return sharedPrefs.getStringSet("pending_budget_deletions", emptySet()) ?: emptySet()
+        return try {
+            sharedPrefs.getStringSet("pending_budget_deletions", emptySet()) ?: emptySet()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to get pending budget deletions", e)
+            emptySet()
+        }
     }
 
     fun addPendingBudgetDeletion(serverId: String) {
-        val current = getPendingBudgetDeletions().toMutableSet()
-        current.add(serverId)
-        sharedPrefs.edit().putStringSet("pending_budget_deletions", current).apply()
+        try {
+            val current = getPendingBudgetDeletions().toMutableSet()
+            current.add(serverId)
+            sharedPrefs.edit().putStringSet("pending_budget_deletions", current).apply()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to add pending budget deletion for $serverId", e)
+        }
     }
 
     fun removePendingBudgetDeletion(serverId: String) {
-        val current = getPendingBudgetDeletions().toMutableSet()
-        current.remove(serverId)
-        sharedPrefs.edit().putStringSet("pending_budget_deletions", current).apply()
+        try {
+            val current = getPendingBudgetDeletions().toMutableSet()
+            current.remove(serverId)
+            sharedPrefs.edit().putStringSet("pending_budget_deletions", current).apply()
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("PendingDeleteManager", "Failed to remove pending budget deletion for $serverId", e)
+        }
     }
 }

@@ -38,7 +38,7 @@ class BudgetSyncScheduler @Inject constructor(
                 syncRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("BudgetSyncScheduler", "Failed to schedule budget upsert sync for $localId: ${e.message}", e)
         }
     }
 
@@ -72,7 +72,7 @@ class BudgetSyncScheduler @Inject constructor(
                 syncRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("BudgetSyncScheduler", "Failed to schedule budget delete sync for $serverId: ${e.message}", e)
         }
     }
 }

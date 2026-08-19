@@ -19,12 +19,15 @@ class AuthRepositoryImpl @Inject constructor(
         try {
             val response = api.loginInitiate(LoginRequestDto(username, password))
             if (response.isSuccessful) {
+                com.hevincj.cashflow.utils.CrashLogger.i("AuthRepository", "Login initiated for user: $username")
                 Result.success(Unit)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
+                com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Login initiation failed for $username: $errorMsg")
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Exception initiating login for $username", e)
             Result.failure(e)
         }
     }
@@ -35,13 +38,18 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 response.body()?.token?.let {
                     tokenManager.saveToken(it)
+                    com.hevincj.cashflow.utils.CrashLogger.setUserId(username)
+                    com.hevincj.cashflow.utils.CrashLogger.setCustomKey("is_authenticated", true)
+                    com.hevincj.cashflow.utils.CrashLogger.i("AuthRepository", "User $username verified login successfully")
                     Result.success(Unit)
                 } ?: Result.failure(Exception("No token in response"))
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
+                com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Login verification failed for $username: $errorMsg")
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Exception verifying login for $username", e)
             Result.failure(e)
         }
     }
@@ -50,12 +58,15 @@ class AuthRepositoryImpl @Inject constructor(
         try {
             val response = api.registerInitiate(RegisterRequestDto(username, password, firstName, lastName, phoneNumber))
             if (response.isSuccessful) {
+                com.hevincj.cashflow.utils.CrashLogger.i("AuthRepository", "Register initiated for user: $username")
                 Result.success(Unit)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
+                com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Register initiation failed for $username: $errorMsg")
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Exception initiating register for $username", e)
             Result.failure(e)
         }
     }
@@ -66,13 +77,18 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 response.body()?.token?.let {
                     tokenManager.saveToken(it)
+                    com.hevincj.cashflow.utils.CrashLogger.setUserId(username)
+                    com.hevincj.cashflow.utils.CrashLogger.setCustomKey("is_authenticated", true)
+                    com.hevincj.cashflow.utils.CrashLogger.i("AuthRepository", "User $username registered successfully")
                     Result.success(Unit)
                 } ?: Result.failure(Exception("No token in response"))
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
+                com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Register verification failed for $username: $errorMsg")
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("AuthRepository", "Exception verifying register for $username", e)
             Result.failure(e)
         }
     }
@@ -82,6 +98,9 @@ class AuthRepositoryImpl @Inject constructor(
             tokenManager.clearToken()
             database.userProfileDao.clearProfile()
             database.clearAllTables()
+            com.hevincj.cashflow.utils.CrashLogger.setUserId("")
+            com.hevincj.cashflow.utils.CrashLogger.setCustomKey("is_authenticated", false)
+            com.hevincj.cashflow.utils.CrashLogger.i("AuthRepository", "User logged out")
         }
     }
 

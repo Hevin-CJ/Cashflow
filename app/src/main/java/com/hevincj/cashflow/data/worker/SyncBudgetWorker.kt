@@ -31,9 +31,27 @@ class SyncBudgetWorker(
             )
             val syncManager = entryPoint.budgetSyncManager()
             val error = syncManager.syncSpecificBudget(action, localId, serverId)
-            if (error == null) Result.success() else Result.retry()
+            if (error == null) {
+                Result.success()
+            } else {
+                com.hevincj.cashflow.utils.CrashLogger.w(
+                    "SyncBudgetWorker",
+                    "Budget sync attempt $runAttemptCount failed for action=$action, localId=$localId: $error"
+                )
+                if (runAttemptCount < 3) Result.retry() else {
+                    com.hevincj.cashflow.utils.CrashLogger.e(
+                        "SyncBudgetWorker",
+                        "Budget sync permanently failed for action=$action, localId=$localId: $error"
+                    )
+                    Result.failure()
+                }
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.e(
+                "SyncBudgetWorker",
+                "Unhandled exception in SyncBudgetWorker at attempt $runAttemptCount",
+                e
+            )
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }

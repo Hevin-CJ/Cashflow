@@ -43,10 +43,12 @@ class UserRepositoryImpl @Inject constructor(
                     Result.success(cached.toDomain())
                 } else {
                     val errorMsg = response.errorBody()?.string() ?: response.message()
+                    com.hevincj.cashflow.utils.CrashLogger.w("UserRepository", "Get profile failed: $errorMsg")
                     Result.failure(Exception(errorMsg))
                 }
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("UserRepository", "Exception getting user profile: ${e.message}", e)
             val cached = userProfileDao.getUserProfile()
             if (cached != null) {
                 Result.success(cached.toDomain())
@@ -78,9 +80,11 @@ class UserRepositoryImpl @Inject constructor(
                 Result.success(profile)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: response.message()
+                com.hevincj.cashflow.utils.CrashLogger.w("UserRepository", "Update profile failed: $errorMsg")
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("UserRepository", "Exception updating profile: ${e.message}", e)
             Result.failure(e)
         }
     }

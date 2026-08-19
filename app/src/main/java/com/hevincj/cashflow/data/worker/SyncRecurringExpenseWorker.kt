@@ -40,14 +40,26 @@ class SyncRecurringExpenseWorker(
             if (success) {
                 Result.success()
             } else {
+                com.hevincj.cashflow.utils.CrashLogger.w(
+                    "SyncRecurringExpenseWorker",
+                    "Recurring expense sync attempt $runAttemptCount failed for action=$action, localId=$localId"
+                )
                 if (runAttemptCount < 3) {
                     Result.retry()
                 } else {
+                    com.hevincj.cashflow.utils.CrashLogger.e(
+                        "SyncRecurringExpenseWorker",
+                        "Recurring expense sync permanently failed for action=$action, localId=$localId"
+                    )
                     Result.failure()
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.e(
+                "SyncRecurringExpenseWorker",
+                "Unhandled exception in SyncRecurringExpenseWorker at attempt $runAttemptCount",
+                e
+            )
             if (runAttemptCount < 3) {
                 Result.retry()
             } else {

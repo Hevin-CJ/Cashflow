@@ -42,14 +42,26 @@ class SyncTransactionWorker(
             if (error == null) {
                 Result.success()
             } else {
+                com.hevincj.cashflow.utils.CrashLogger.w(
+                    "SyncTransactionWorker",
+                    "Transaction sync attempt $runAttemptCount failed for action=$action, localId=$localId: $error"
+                )
                 if (runAttemptCount < 3) {
                     Result.retry()
                 } else {
+                    com.hevincj.cashflow.utils.CrashLogger.e(
+                        "SyncTransactionWorker",
+                        "Transaction sync permanently failed for action=$action, localId=$localId: $error"
+                    )
                     Result.failure()
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.e(
+                "SyncTransactionWorker",
+                "Unhandled exception in SyncTransactionWorker at attempt $runAttemptCount",
+                e
+            )
             if (runAttemptCount < 3) {
                 Result.retry()
             } else {

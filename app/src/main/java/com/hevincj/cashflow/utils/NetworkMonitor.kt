@@ -16,16 +16,23 @@ class NetworkMonitor(context: Context) {
     val isConnected: Flow<Boolean> = callbackFlow {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                trySend(isCurrentlyConnected())
+                val connected = isCurrentlyConnected()
+                com.hevincj.cashflow.utils.CrashLogger.setCustomKey("network_status", if (connected) "online" else "offline")
+                com.hevincj.cashflow.utils.CrashLogger.i("NetworkMonitor", "Network available (connected: $connected)")
+                trySend(connected)
             }
 
             override fun onLost(network: Network) {
-                trySend(isCurrentlyConnected())
+                val connected = isCurrentlyConnected()
+                com.hevincj.cashflow.utils.CrashLogger.setCustomKey("network_status", "offline")
+                com.hevincj.cashflow.utils.CrashLogger.w("NetworkMonitor", "Network connection lost")
+                trySend(connected)
             }
 
             override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
                 // FIX: Evaluate the system's global connection state, not just this isolated network event
-                trySend(isCurrentlyConnected())
+                val connected = isCurrentlyConnected()
+                trySend(connected)
             }
         }
 
@@ -33,11 +40,14 @@ class NetworkMonitor(context: Context) {
         try {
             connectivityManager.registerDefaultNetworkCallback(callback)
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("NetworkMonitor", "Failed to register network callback: ${e.message}", e)
             trySend(isCurrentlyConnected())
         }
 
         // Emit initial baseline connectivity state
-        trySend(isCurrentlyConnected())
+        val initial = isCurrentlyConnected()
+        com.hevincj.cashflow.utils.CrashLogger.setCustomKey("network_status", if (initial) "online" else "offline")
+        trySend(initial)
 
         awaitClose {
             try {

@@ -80,7 +80,7 @@ class RecurringExpenseSyncManager @Inject constructor(
             return true
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("RecurringExpenseSyncManager", "Exception during specific recurring expense sync: ${e.message}", e)
             return false
         }
     }

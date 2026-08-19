@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.allopen)
     alias(libs.plugins.baseline.profile)
+    alias(libs.plugins.google.gms.google.services)
+    alias(libs.plugins.google.firebase.crashlytics)
 }
 
 allOpen {
@@ -106,7 +108,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.foundation.layout)
-    
+    implementation(libs.firebase.crashlytics)
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

@@ -110,7 +110,9 @@ class TransactionSyncManager @Inject constructor(
                             }
                             return null
                         } else {
-                            return "Failed to create transaction: ${response.message()} (code ${response.code()})"
+                            val errorMsg = "Failed to create transaction: ${response.message()} (code ${response.code()})"
+                            com.hevincj.cashflow.utils.CrashLogger.w("TransactionSyncManager", errorMsg)
+                            return errorMsg
                         }
                     }
                 }
@@ -123,13 +125,15 @@ class TransactionSyncManager @Inject constructor(
                         pendingDeleteManager.removePendingDeletion(serverId)
                         return null
                     }
-                    return "Failed to delete transaction: ${response.message()} (code ${response.code()})"
+                    val errorMsg = "Failed to delete transaction: ${response.message()} (code ${response.code()})"
+                    com.hevincj.cashflow.utils.CrashLogger.w("TransactionSyncManager", errorMsg)
+                    return errorMsg
                 }
             }
             return null
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionSyncManager", "Exception during specific transaction sync: ${e.message}", e)
             return e.message ?: "Unknown sync error"
         }
     }

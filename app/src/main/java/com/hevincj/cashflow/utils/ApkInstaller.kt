@@ -52,7 +52,7 @@ object ApkInstaller {
             if (sessionResult.isSuccess) {
                 return sessionResult
             }
-            Log.w(TAG, "PackageInstaller session failed, falling back to ACTION_VIEW", sessionResult.exceptionOrNull())
+            com.hevincj.cashflow.utils.CrashLogger.w(TAG, "PackageInstaller session failed, falling back to ACTION_VIEW: ${sessionResult.exceptionOrNull()?.message}", sessionResult.exceptionOrNull())
         }
 
         // Fallback to legacy Intent.ACTION_VIEW
@@ -103,9 +103,10 @@ object ApkInstaller {
                 activeSession.commit(pendingIntent.intentSender)
             }
 
-            Log.d(TAG, "PackageInstaller session #$sessionId committed successfully")
+            com.hevincj.cashflow.utils.CrashLogger.i(TAG, "PackageInstaller session #$sessionId committed successfully")
             Result.success(Unit)
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.e(TAG, "PackageInstaller session exception", e)
             Result.failure(e)
         }
     }

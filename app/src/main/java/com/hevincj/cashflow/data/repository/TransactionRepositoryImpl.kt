@@ -121,11 +121,13 @@ class TransactionRepositoryImpl @Inject constructor(
                 }
                 return@withContext null
             } else {
-                return@withContext "Failed to sync: ${response.message()} (code ${response.code()})"
+                val errorMsg = "Failed to sync: ${response.message()} (code ${response.code()})"
+                com.hevincj.cashflow.utils.CrashLogger.w("TransactionRepository", errorMsg)
+                return@withContext errorMsg
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionRepository", "Sync transactions caught exception: ${e.message}", e)
             return@withContext when (e) {
                 is java.net.ConnectException -> "Failed to connect to the server."
                 is java.net.SocketTimeoutException -> "Connection timed out."
@@ -167,7 +169,7 @@ class TransactionRepositoryImpl @Inject constructor(
         try {
             BalanceWidget().updateAll(context)
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionRepository", "Failed to update balance widget: ${e.message}", e)
         }
     }
 
@@ -207,7 +209,7 @@ class TransactionRepositoryImpl @Inject constructor(
         try {
             BalanceWidget().updateAll(context)
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionRepository", "Failed to update balance widget: ${e.message}", e)
         }
     }
 
@@ -233,7 +235,7 @@ class TransactionRepositoryImpl @Inject constructor(
         try {
             BalanceWidget().updateAll(context)
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionRepository", "Failed to update balance widget: ${e.message}", e)
         }
     }
 }

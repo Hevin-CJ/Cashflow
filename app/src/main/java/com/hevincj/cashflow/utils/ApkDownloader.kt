@@ -59,7 +59,7 @@ class ApkDownloader @Inject constructor(
             var patchDownloadSuccess = false
 
             try {
-                Log.d(TAG, "Attempting delta patch update from: ${updateInfo.patchDownloadUrl}")
+                com.hevincj.cashflow.utils.CrashLogger.d(TAG, "Attempting delta patch update from: ${updateInfo.patchDownloadUrl}")
                 val downloaded = downloadToFile(
                     url = updateInfo.patchDownloadUrl,
                     destination = patchFile,
@@ -70,7 +70,7 @@ class ApkDownloader @Inject constructor(
                 )
                 patchDownloadSuccess = downloaded
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to download delta patch: ${e.message}. Falling back to full APK.")
+                com.hevincj.cashflow.utils.CrashLogger.w(TAG, "Failed to download delta patch: ${e.message}. Falling back to full APK.", e)
             }
 
             if (patchDownloadSuccess && patchFile.exists() && patchFile.length() > 0) {
@@ -79,7 +79,7 @@ class ApkDownloader @Inject constructor(
                 try {
                     val currentApk = File(context.applicationInfo.sourceDir)
                     if (currentApk.exists()) {
-                        Log.d(TAG, "Applying BSDIFF40 patch against installed APK (${currentApk.length()} bytes)...")
+                        com.hevincj.cashflow.utils.CrashLogger.d(TAG, "Applying BSDIFF40 patch against installed APK (${currentApk.length()} bytes)...")
                         val patchSuccess = BsPatch.applyPatch(
                             oldFile = currentApk,
                             patchFile = patchFile,
@@ -87,18 +87,18 @@ class ApkDownloader @Inject constructor(
                         )
 
                         if (patchSuccess && destinationApk.exists() && destinationApk.length() > 0) {
-                            Log.d(TAG, "Delta patch applied successfully! Output APK: ${destinationApk.length()} bytes")
+                            com.hevincj.cashflow.utils.CrashLogger.i(TAG, "Delta patch applied successfully! Output APK: ${destinationApk.length()} bytes")
                             patchFile.delete()
                             emit(DownloadStatus.Completed(destinationApk))
                             return@flow
                         } else {
-                            Log.w(TAG, "BsPatch synthesis failed. Falling back to full APK download.")
+                            com.hevincj.cashflow.utils.CrashLogger.w(TAG, "BsPatch synthesis failed. Falling back to full APK download.")
                         }
                     } else {
-                        Log.w(TAG, "Source APK not accessible at ${currentApk.path}. Falling back.")
+                        com.hevincj.cashflow.utils.CrashLogger.w(TAG, "Source APK not accessible at ${currentApk.path}. Falling back.")
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Error applying delta patch: ${e.message}. Falling back to full APK.", e)
+                    com.hevincj.cashflow.utils.CrashLogger.w(TAG, "Error applying delta patch: ${e.message}. Falling back to full APK.", e)
                 } finally {
                     if (patchFile.exists()) patchFile.delete()
                 }
@@ -111,7 +111,7 @@ class ApkDownloader @Inject constructor(
         }
 
         // 2. Full APK Download (Direct or Fallback)
-        Log.d(TAG, "Downloading full APK from: ${updateInfo.downloadUrl}")
+        com.hevincj.cashflow.utils.CrashLogger.d(TAG, "Downloading full APK from: ${updateInfo.downloadUrl}")
         emit(DownloadStatus.Downloading(0f, 0L, 0L, isPatch = false))
 
         try {

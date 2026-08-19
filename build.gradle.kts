@@ -8,4 +8,6 @@ plugins {
     alias(libs.plugins.kotlin.allopen) apply false
     alias(libs.plugins.android.test) apply false
     alias(libs.plugins.baseline.profile) apply false
+    alias(libs.plugins.google.gms.google.services) apply false
+    alias(libs.plugins.google.firebase.crashlytics) apply false
 }

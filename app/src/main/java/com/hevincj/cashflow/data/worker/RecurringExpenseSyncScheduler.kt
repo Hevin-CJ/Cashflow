@@ -25,7 +25,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
                 immediateRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("RecurringExpenseSyncScheduler", "Failed to schedule immediate processing: ${e.message}", e)
         }
     }
 
@@ -52,7 +52,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
                 periodicRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("RecurringExpenseSyncScheduler", "Failed to schedule periodic processing: ${e.message}", e)
         }
     }
 
@@ -83,7 +83,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
                 syncRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("RecurringExpenseSyncScheduler", "Failed to schedule recurring upsert sync for $localId: ${e.message}", e)
         }
     }
 
@@ -114,7 +114,7 @@ class RecurringExpenseSyncScheduler @Inject constructor(
                 syncRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("RecurringExpenseSyncScheduler", "Failed to schedule recurring delete sync for $serverId: ${e.message}", e)
         }
     }
 }

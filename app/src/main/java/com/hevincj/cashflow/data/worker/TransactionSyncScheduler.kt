@@ -38,7 +38,7 @@ class TransactionSyncScheduler @Inject constructor(
                 syncRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionSyncScheduler", "Failed to schedule upsert sync for $localId: ${e.message}", e)
         }
     }
 
@@ -69,7 +69,7 @@ class TransactionSyncScheduler @Inject constructor(
                 syncRequest
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("TransactionSyncScheduler", "Failed to schedule delete sync for $serverId: ${e.message}", e)
         }
     }
 }

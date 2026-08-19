@@ -123,11 +123,13 @@ class BudgetRepositoryImpl @Inject constructor(
                 }
                 return@withContext null
             } else {
-                return@withContext "Failed to sync budgets: ${response.message()} (code ${response.code()})"
+                val errorMsg = "Failed to sync budgets: ${response.message()} (code ${response.code()})"
+                com.hevincj.cashflow.utils.CrashLogger.w("BudgetRepository", errorMsg)
+                return@withContext errorMsg
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("BudgetRepository", "Sync budgets caught exception: ${e.message}", e)
             return@withContext "Failed to connect to the server."
         }
     }

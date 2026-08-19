@@ -198,4 +198,10 @@ object AppModule {
     ): com.hevincj.cashflow.domain.repository.UpdateRepository {
         return com.hevincj.cashflow.data.repository.UpdateRepositoryImpl(githubApi)
     }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseCrashlytics(): com.google.firebase.crashlytics.FirebaseCrashlytics {
+        return com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance()
+    }
 }

@@ -89,7 +89,7 @@ class BudgetSyncManager @Inject constructor(
             return null
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            e.printStackTrace()
+            com.hevincj.cashflow.utils.CrashLogger.w("BudgetSyncManager", "Exception during specific budget sync: ${e.message}", e)
             return e.message ?: "Unknown sync error"
         }
     }

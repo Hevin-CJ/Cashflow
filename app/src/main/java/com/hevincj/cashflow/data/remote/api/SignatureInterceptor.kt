@@ -31,7 +31,12 @@ class SignatureInterceptor : Interceptor {
         val path = originalRequest.url.encodedPath
 
         val dataToSign = "$method|$path|$timestamp|$nonce"
-        val signature = hmacSha256(apiSecret, dataToSign)
+        val signature = try {
+            hmacSha256(apiSecret, dataToSign)
+        } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.e("SignatureInterceptor", "Failed to compute HMAC signature for $path", e)
+            ""
+        }
 
         val newRequest = originalRequest.newBuilder()
             .header("X-App-Signature", signature)

@@ -48,6 +48,7 @@ class UpdateRepositoryImpl @Inject constructor(
             )
             Result.success(updateInfo)
         } catch (e: Exception) {
+            com.hevincj.cashflow.utils.CrashLogger.w("UpdateRepository", "Check for update failed: ${e.message}", e)
             Result.failure(e)
         }
     }
