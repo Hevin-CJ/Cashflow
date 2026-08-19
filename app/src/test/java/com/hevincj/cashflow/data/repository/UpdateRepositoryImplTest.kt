@@ -49,6 +49,26 @@ class UpdateRepositoryImplTest {
     }
 
     @Test
+    fun `formatReleaseNotes deduplicates repeated release note lines case-insensitively`() {
+        val rawBody = """
+            ## What's Changed
+            * Fixed recurring subscription repeating issue
+            * fixed recurring subscription repeating issue
+            * Fixed Barcode Scanner Crashing Issue
+            * Fixed Recurring Subscription Repeating Issue
+            * Fixed Profile Screen Crash on Logout
+        """.trimIndent()
+
+        val formatted = repository.formatReleaseNotes(rawBody)
+        val lines = formatted.lines()
+
+        assertEquals(3, lines.size)
+        assertEquals("• Fixed recurring subscription repeating issue", lines[0])
+        assertEquals("• Fixed Barcode Scanner Crashing Issue", lines[1])
+        assertEquals("• Fixed Profile Screen Crash on Logout", lines[2])
+    }
+
+    @Test
     fun `checkForUpdate discovers patch asset with semantic regex matching`() = runTest {
         val releaseDto = GithubReleaseDto(
             tagName = "v1.0.6",
@@ -116,6 +136,115 @@ class UpdateRepositoryImplTest {
         assertFalse(updateInfo.isDeltaPatch)
         assertNull(updateInfo.patchDownloadUrl)
         assertEquals(18500000L, updateInfo.apkSize)
+    }
+
+    @Test
+    fun `formatMultiReleaseNotes aggregates multiple versions with version headers`() {
+        val releases = listOf(
+            GithubReleaseDto(
+                tagName = "v1.1.0",
+                name = "CashFlow v1.1.0",
+                body = "* Added new analytics dashboard\n* General performance improvements",
+                publishedAt = "2026-08-20T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.1.0",
+                assets = emptyList()
+            ),
+            GithubReleaseDto(
+                tagName = "v1.0.9",
+                name = "CashFlow v1.0.9",
+                body = "* Added export to PDF & CSV support",
+                publishedAt = "2026-08-19T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.0.9",
+                assets = emptyList()
+            ),
+            GithubReleaseDto(
+                tagName = "v1.0.8",
+                name = "CashFlow v1.0.8",
+                body = "* Fixed recurring subscriptions repeating issue\n* Fixed Barcode Scanner crashing issue",
+                publishedAt = "2026-08-18T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.0.8",
+                assets = emptyList()
+            )
+        )
+
+        val formatted = repository.formatMultiReleaseNotes(releases, fallbackSingleBody = null)
+
+        assertTrue(formatted.contains("v1.1.0:\n• Added new analytics dashboard\n• General performance improvements"))
+        assertTrue(formatted.contains("v1.0.9:\n• Added export to PDF & CSV support"))
+        assertTrue(formatted.contains("v1.0.8:\n• Fixed recurring subscriptions repeating issue\n• Fixed Barcode Scanner crashing issue"))
+    }
+
+    @Test
+    fun `checkForUpdate aggregates changelogs from all newer releases across multi-version jump`() = runTest {
+        val releases = listOf(
+            GithubReleaseDto(
+                tagName = "v1.1.0",
+                name = "CashFlow v1.1.0",
+                body = "* Added new analytics dashboard",
+                publishedAt = "2026-08-20T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.1.0",
+                assets = listOf(
+                    GithubReleaseAssetDto(
+                        name = "CashFlow-v1.1.0.apk",
+                        size = 18500000L,
+                        browserDownloadUrl = "https://github.com/download/CashFlow-v1.1.0.apk",
+                        contentType = "application/vnd.android.package-archive"
+                    ),
+                    GithubReleaseAssetDto(
+                        name = "patch-v1.0.7-to-v1.1.0.patch",
+                        size = 2100000L,
+                        browserDownloadUrl = "https://github.com/download/patch-v1.0.7-to-v1.1.0.patch",
+                        contentType = "application/octet-stream"
+                    )
+                )
+            ),
+            GithubReleaseDto(
+                tagName = "v1.0.9",
+                name = "CashFlow v1.0.9",
+                body = "* Added export to PDF support",
+                publishedAt = "2026-08-19T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.0.9",
+                assets = emptyList()
+            ),
+            GithubReleaseDto(
+                tagName = "v1.0.8",
+                name = "CashFlow v1.0.8",
+                body = "* Fixed recurring subscriptions repeating issue",
+                publishedAt = "2026-08-18T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.0.8",
+                assets = emptyList()
+            ),
+            GithubReleaseDto(
+                tagName = "v1.0.7",
+                name = "CashFlow v1.0.7",
+                body = "* Initial 1.0.7 release",
+                publishedAt = "2026-08-17T00:00:00Z",
+                htmlUrl = "https://github.com/Hevin-CJ/Cashflow/releases/tag/v1.0.7",
+                assets = emptyList()
+            )
+        )
+
+        `when`(githubApi.getAllReleases()).thenReturn(releases)
+
+        val result = repository.checkForUpdate(currentVersionName = "1.0.7")
+        assertTrue(result.isSuccess)
+
+        val updateInfo = result.getOrNull()
+        assertNotNull(updateInfo)
+        assertTrue(updateInfo!!.isUpdateAvailable)
+        assertEquals("1.1.0", updateInfo.latestVersion)
+        assertEquals("1.0.7", updateInfo.currentVersion)
+        assertTrue(updateInfo.isDeltaPatch)
+        assertEquals(2100000L, updateInfo.patchSize)
+
+        // Verify that notes contain all intermediate releases 1.1.0, 1.0.9, 1.0.8 and exclude 1.0.7
+        assertTrue(updateInfo.releaseNotes.contains("v1.1.0:"))
+        assertTrue(updateInfo.releaseNotes.contains("• Added new analytics dashboard"))
+        assertTrue(updateInfo.releaseNotes.contains("v1.0.9:"))
+        assertTrue(updateInfo.releaseNotes.contains("• Added export to PDF support"))
+        assertTrue(updateInfo.releaseNotes.contains("v1.0.8:"))
+        assertTrue(updateInfo.releaseNotes.contains("• Fixed recurring subscriptions repeating issue"))
+        assertFalse(updateInfo.releaseNotes.contains("v1.0.7:"))
     }
 
     @Test

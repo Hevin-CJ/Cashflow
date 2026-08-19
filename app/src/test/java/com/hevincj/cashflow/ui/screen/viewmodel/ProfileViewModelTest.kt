@@ -57,6 +57,19 @@ class ProfileViewModelTest {
             whenever(userRepository.getUserProfile()).thenReturn(
                 Result.success(UserProfile("leslie@gmail.com", "Leslie", "Alexander", "123456", null))
             )
+            whenever(updateRepository.checkForUpdate(org.mockito.kotlin.any())).thenReturn(
+                Result.success(
+                    com.hevincj.cashflow.domain.models.AppUpdateInfo(
+                        isUpdateAvailable = false,
+                        latestVersion = "1.0.0",
+                        currentVersion = "1.0.0",
+                        releaseTitle = "1.0.0",
+                        releaseNotes = "",
+                        downloadUrl = "",
+                        apkSize = 0L
+                    )
+                )
+            )
         }
         viewModel = ProfileViewModel(
             authRepository,
@@ -85,5 +98,29 @@ class ProfileViewModelTest {
         org.junit.Assert.assertEquals("Leslie", state.firstName)
         org.junit.Assert.assertEquals("Alexander", state.lastName)
         org.junit.Assert.assertEquals("123456", state.phoneNumber)
+    }
+
+    @Test
+    fun testUpdateAvailablePopulatesState() = runTest {
+        val updateInfo = com.hevincj.cashflow.domain.models.AppUpdateInfo(
+            isUpdateAvailable = true,
+            latestVersion = "1.0.9",
+            currentVersion = "1.0.8",
+            releaseTitle = "CashFlow v1.0.9",
+            releaseNotes = "• New features",
+            downloadUrl = "https://example.com/apk",
+            apkSize = 1000L
+        )
+        whenever(updateRepository.checkForUpdate(org.mockito.kotlin.any())).thenReturn(
+            Result.success(updateInfo)
+        )
+
+        viewModel.checkForUpdates(isManualCheck = false)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.hasUpdateAvailable)
+        org.junit.Assert.assertEquals("1.0.9", state.latestAvailableVersion)
+        org.junit.Assert.assertNotNull(state.availableUpdateInfo)
     }
 }

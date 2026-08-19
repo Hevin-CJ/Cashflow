@@ -19,28 +19,40 @@ class UpdateRepositoryImpl @Inject constructor(
 
     override suspend fun checkForUpdate(currentVersionName: String): Result<AppUpdateInfo> {
         return try {
-            val release = githubApi.getLatestRelease()
-            val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-                ?: release.assets.firstOrNull()
+            val releases = try {
+                val list = githubApi.getAllReleases()
+                if (list.isNotEmpty()) list else listOf(githubApi.getLatestRelease())
+            } catch (e: Exception) {
+                listOf(githubApi.getLatestRelease())
+            }
+
+            val latestRelease = releases.firstOrNull()
+                ?: return Result.failure(IllegalStateException("No releases available"))
+
+            val apkAsset = latestRelease.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                ?: latestRelease.assets.firstOrNull()
 
             val cleanCurrent = semanticVersionRegex.find(currentVersionName)?.value
                 ?: currentVersionName.trim().removePrefix("v").removePrefix("V")
-            val cleanRemote = semanticVersionRegex.find(release.tagName)?.value
-                ?: release.tagName.trim().removePrefix("v").removePrefix("V")
+            val cleanRemote = semanticVersionRegex.find(latestRelease.tagName)?.value
+                ?: latestRelease.tagName.trim().removePrefix("v").removePrefix("V")
 
             val patchPattern = Regex(
                 """^patch-v?${Regex.escape(cleanCurrent)}-to-v?${Regex.escape(cleanRemote)}\.(patch|hdiff)$""",
                 RegexOption.IGNORE_CASE
             )
-            val patchAsset = release.assets.firstOrNull { patchPattern.matches(it.name.trim()) }
+            val patchAsset = latestRelease.assets.firstOrNull { patchPattern.matches(it.name.trim()) }
 
-            val isNewer = isNewerVersion(remoteTag = release.tagName, currentVersion = currentVersionName)
+            val isNewer = isNewerVersion(remoteTag = latestRelease.tagName, currentVersion = currentVersionName)
+            val newerReleases = releases.filter { isNewerVersion(remoteTag = it.tagName, currentVersion = currentVersionName) }
+            val aggregatedNotes = formatMultiReleaseNotes(newerReleases, fallbackSingleBody = latestRelease.body)
+
             val updateInfo = AppUpdateInfo(
                 isUpdateAvailable = isNewer && apkAsset != null,
                 latestVersion = cleanRemote,
                 currentVersion = cleanCurrent,
-                releaseTitle = release.name ?: release.tagName,
-                releaseNotes = formatReleaseNotes(release.body),
+                releaseTitle = latestRelease.name ?: latestRelease.tagName,
+                releaseNotes = aggregatedNotes,
                 downloadUrl = apkAsset?.browserDownloadUrl ?: "",
                 apkSize = apkAsset?.size ?: 0L,
                 patchDownloadUrl = patchAsset?.browserDownloadUrl,
@@ -50,6 +62,33 @@ class UpdateRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             com.hevincj.cashflow.utils.CrashLogger.w("UpdateRepository", "Check for update failed: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    internal fun formatMultiReleaseNotes(
+        newerReleases: List<com.hevincj.cashflow.data.remote.models.GithubReleaseDto>,
+        fallbackSingleBody: String?
+    ): String {
+        if (newerReleases.isEmpty()) {
+            return formatReleaseNotes(fallbackSingleBody)
+        }
+        if (newerReleases.size == 1) {
+            return formatReleaseNotes(newerReleases[0].body ?: fallbackSingleBody)
+        }
+
+        val sections = newerReleases.mapNotNull { release ->
+            val cleanVersion = semanticVersionRegex.find(release.tagName)?.value
+                ?: release.tagName.trim().removePrefix("v").removePrefix("V")
+            val formatted = formatReleaseNotes(release.body)
+            if (formatted.isNotBlank()) {
+                "v$cleanVersion:\n$formatted"
+            } else null
+        }
+
+        return if (sections.isEmpty()) {
+            formatReleaseNotes(fallbackSingleBody)
+        } else {
+            sections.joinToString("\n\n")
         }
     }
 
@@ -66,14 +105,14 @@ class UpdateRepositoryImpl @Inject constructor(
                     .replace(Regex("^#+\\s*"), "")
                     .trim()
             }
-            .filter { line ->
-                val trimmed = line.trimStart('*', '-', '•', ' ').trim()
+            .map { it.trimStart('*', '-', '•', ' ').trim() }
+            .filter { trimmed ->
                 trimmed.isNotEmpty() &&
                 !trimmed.equals("What's Changed", ignoreCase = true) &&
                 !versionLinePattern.matches(trimmed)
             }
-            .joinToString("\n") { line ->
-                val trimmed = line.trimStart('*', '-', '•', ' ').trim()
+            .distinctBy { it.lowercase(java.util.Locale.ROOT) }
+            .joinToString("\n") { trimmed ->
                 "• $trimmed"
             }
             .trim()

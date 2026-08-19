@@ -62,17 +62,8 @@ data class ProfileMenuItem(
     val title: String,
     val icon: ImageVector,
     val backgroundColor: Color,
-    val subtitle: String? = null
-)
-
-val menuItems = listOf(
-    ProfileMenuItem("Account Info", Icons.Default.Person, Color(0xFF635BFF)),
-    ProfileMenuItem("Export To CSV/PDF", Icons.Default.Share, Color(0xFF65C466)),
-    ProfileMenuItem("Exchange Currency", Icons.Default.AttachMoney, Color(0xFF0288D1)),
-    ProfileMenuItem("Subscriptions & Recurring", Icons.Default.Autorenew, Color(0xFFFF9F1C)),
-    ProfileMenuItem("Check for Updates", Icons.Default.SystemUpdate, Color(0xFF8121FD), subtitle = "v${com.hevincj.cashflow.BuildConfig.VERSION_NAME}"),
-    ProfileMenuItem("Settings", Icons.Default.Settings, Color(0xFF32827A)),
-    ProfileMenuItem("Logout", Icons.AutoMirrored.Filled.ExitToApp, Color(0xFFE93B3A))
+    val subtitle: String? = null,
+    val badgeText: String? = null
 )
 
 @Composable
@@ -94,15 +85,54 @@ fun ProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     fun openSavedFile(uri: Uri, mimeType: String) {
-        try {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mimeType)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val mimeCandidates = when (mimeType) {
+            "text/csv" -> listOf(
+                "text/csv",
+                "text/comma-separated-values",
+                "application/csv",
+                "application/vnd.ms-excel",
+                "text/plain",
+                "*/*"
+            )
+            "application/pdf" -> listOf(
+                "application/pdf",
+                "*/*"
+            )
+            else -> listOf(mimeType, "*/*")
+        }
+
+        var launched = false
+        for (candidate in mimeCandidates) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, candidate)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                val chooser = Intent.createChooser(intent, "Open file").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+                launched = true
+                break
+            } catch (e: Exception) {
+                // Try next candidate MIME type
             }
-            context.startActivity(Intent.createChooser(intent, "Open file"))
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show()
+        }
+
+        if (!launched) {
+            try {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = if (mimeType == "text/csv") "text/*" else mimeType
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                val shareChooser = Intent.createChooser(shareIntent, "Open or share file").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(shareChooser)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -347,6 +377,7 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) {
         viewModel.fetchUserProfile()
+        viewModel.checkForUpdates(isManualCheck = false)
     }
 
     LaunchedEffect(uiState.updateMessage) {
@@ -372,6 +403,33 @@ fun ProfileScreen(
         )
     }
 
+    val updateSubtitle = when {
+        uiState.isCheckingUpdate -> "Checking newer versions..."
+        uiState.hasUpdateAvailable && uiState.latestAvailableVersion != null ->
+            "v${com.hevincj.cashflow.BuildConfig.VERSION_NAME} • v${uiState.latestAvailableVersion} available"
+        else ->
+            "v${com.hevincj.cashflow.BuildConfig.VERSION_NAME} (Latest)"
+    }
+    val updateBadge = if (uiState.hasUpdateAvailable && !uiState.isCheckingUpdate) "UPDATE" else null
+
+    val currentMenuItems = remember(uiState.hasUpdateAvailable, uiState.latestAvailableVersion, uiState.isCheckingUpdate) {
+        listOf(
+            ProfileMenuItem("Account Info", Icons.Default.Person, Color(0xFF635BFF)),
+            ProfileMenuItem("Export To CSV/PDF", Icons.Default.Share, Color(0xFF65C466)),
+            ProfileMenuItem("Exchange Currency", Icons.Default.AttachMoney, Color(0xFF0288D1)),
+            ProfileMenuItem("Subscriptions & Recurring", Icons.Default.Autorenew, Color(0xFFFF9F1C)),
+            ProfileMenuItem(
+                title = "Check for Updates",
+                icon = Icons.Default.SystemUpdate,
+                backgroundColor = Color(0xFF8121FD),
+                subtitle = updateSubtitle,
+                badgeText = updateBadge
+            ),
+            ProfileMenuItem("Settings", Icons.Default.Settings, Color(0xFF32827A)),
+            ProfileMenuItem("Logout", Icons.AutoMirrored.Filled.ExitToApp, Color(0xFFE93B3A))
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -386,7 +444,7 @@ fun ProfileScreen(
             ProfileHeader(uiState = uiState, onClick = { rootNavController.navigate("edit_profile") })
             Spacer(modifier = Modifier.height(28.dp))
 
-            menuItems.forEach { item ->
+            currentMenuItems.forEach { item ->
                 val isChecking = item.title == "Check for Updates" && uiState.isCheckingUpdate
                 MenuItemRow(
                     item = item,
@@ -398,7 +456,13 @@ fun ProfileScreen(
                             "Settings" -> showSettingsDialog = true
                             "Exchange Currency" -> rootNavController.navigate("exchange_currency")
                             "Subscriptions & Recurring" -> rootNavController.navigate("subscription_manager")
-                            "Check for Updates" -> viewModel.checkForUpdates(isManualCheck = true)
+                            "Check for Updates" -> {
+                                if (uiState.hasUpdateAvailable) {
+                                    viewModel.openUpdateDialog()
+                                } else {
+                                    viewModel.checkForUpdates(isManualCheck = true)
+                                }
+                            }
                             "Export To CSV/PDF" -> showExportDialog = true
                         }
                     }
@@ -552,18 +616,38 @@ private fun MenuItemRow(
 
         // Title & Subtitle Text
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                fontSize = 15.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextPrimary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = item.title,
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary
+                )
+                if (item.badgeText != null) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF635BFF),
+                        contentColor = Color.White
+                    ) {
+                        Text(
+                            text = item.badgeText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
             if (item.subtitle != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = item.subtitle,
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = if (item.badgeText != null) Color(0xFF635BFF) else TextSecondary,
+                    fontWeight = if (item.badgeText != null) FontWeight.Medium else FontWeight.Normal
                 )
             }
         }
@@ -579,7 +663,7 @@ private fun MenuItemRow(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Navigate to ${item.title}",
-                tint = Color(0xFFB3B3B3),
+                tint = if (item.badgeText != null) Color(0xFF635BFF) else Color(0xFFB3B3B3),
                 modifier = Modifier.size(22.dp)
             )
         }

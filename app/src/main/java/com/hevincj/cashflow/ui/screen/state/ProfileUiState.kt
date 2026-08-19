@@ -16,6 +16,9 @@ data class ProfileUiState(
     val error: String? = null,
     val isUpdateSuccess: Boolean = false,
     val isCheckingUpdate: Boolean = false,
+    val hasUpdateAvailable: Boolean = false,
+    val latestAvailableVersion: String? = null,
+    val availableUpdateInfo: com.hevincj.cashflow.domain.models.AppUpdateInfo? = null,
     val updateInfo: com.hevincj.cashflow.domain.models.AppUpdateInfo? = null,
     val downloadStatus: com.hevincj.cashflow.utils.DownloadStatus = com.hevincj.cashflow.utils.DownloadStatus.Idle,
     val updateMessage: String? = null

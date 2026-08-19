@@ -40,10 +40,14 @@ class ProfileViewModel @Inject constructor(
             val currentVersion = BuildConfig.VERSION_NAME
             updateRepository.checkForUpdate(currentVersion)
                 .onSuccess { updateInfo ->
+                    val isAvailable = updateInfo.isUpdateAvailable
                     _state.value = _state.value.copy(
                         isCheckingUpdate = false,
-                        updateInfo = if (updateInfo.isUpdateAvailable) updateInfo else null,
-                        updateMessage = if (!updateInfo.isUpdateAvailable && isManualCheck) {
+                        hasUpdateAvailable = isAvailable,
+                        latestAvailableVersion = if (isAvailable) updateInfo.latestVersion else null,
+                        availableUpdateInfo = if (isAvailable) updateInfo else null,
+                        updateInfo = if (isAvailable && isManualCheck) updateInfo else _state.value.updateInfo,
+                        updateMessage = if (!isAvailable && isManualCheck) {
                             "You are on the latest version (v$currentVersion)"
                         } else null
                     )
@@ -54,6 +58,15 @@ class ProfileViewModel @Inject constructor(
                         updateMessage = if (isManualCheck) "Failed to check for updates: ${error.localizedMessage ?: "Network error"}" else null
                     )
                 }
+        }
+    }
+
+    fun openUpdateDialog() {
+        val available = _state.value.availableUpdateInfo
+        if (available != null) {
+            _state.value = _state.value.copy(updateInfo = available)
+        } else {
+            checkForUpdates(isManualCheck = true)
         }
     }
 
@@ -109,6 +122,7 @@ class ProfileViewModel @Inject constructor(
             }
         }
         fetchUserProfile()
+        checkForUpdates(isManualCheck = false)
     }
 
     fun fetchUserProfile() {
