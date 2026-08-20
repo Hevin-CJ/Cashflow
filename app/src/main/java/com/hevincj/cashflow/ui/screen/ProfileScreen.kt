@@ -258,6 +258,19 @@ fun ProfileScreen(
                             Text(label)
                         }
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.2f))
+                    Text("Diagnostics & Stability", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = {
+                            throw RuntimeException("Test Crashlytics Verification Crash from CashFlow Settings")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE93B3A))
+                    ) {
+                        Text("Test Crash (Simulate Crash)")
+                    }
                 }
             },
             confirmButton = {

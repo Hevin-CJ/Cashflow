@@ -38,11 +38,5 @@ class CashFlowApp : Application(), Configuration.Provider {
         com.hevincj.cashflow.utils.CrashLogger.setCustomKey("version_code", BuildConfig.VERSION_CODE)
         com.hevincj.cashflow.utils.CrashLogger.setCustomKey("build_type", BuildConfig.BUILD_TYPE)
         com.hevincj.cashflow.utils.CrashLogger.i("CashFlowApp", "Application initialized")
-
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            com.hevincj.cashflow.utils.CrashLogger.e("UncaughtException", "Uncaught exception on thread: ${thread.name}", throwable)
-            defaultHandler?.uncaughtException(thread, throwable)
-        }
     }
 }
