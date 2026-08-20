@@ -48,6 +48,9 @@ object CrashLogger {
             val crashlytics = getCrashlyticsSafe()
             val logMessage = if (throwable != null) "[$tag] WARN: $message - ${throwable.message}" else "[$tag] WARN: $message"
             crashlytics?.log(logMessage)
+            if (throwable != null) {
+                crashlytics?.recordException(throwable)
+            }
         } catch (_: Throwable) {}
     }
 

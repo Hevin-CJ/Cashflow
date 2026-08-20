@@ -271,6 +271,21 @@ fun ProfileScreen(
                     ) {
                         Text("Test Crash (Simulate Crash)")
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            com.hevincj.cashflow.utils.CrashLogger.e(
+                                "DiagnosticsTest",
+                                "Simulated Non-Fatal Diagnostic Report from CashFlow Settings",
+                                Exception("Simulated Non-Fatal Diagnostic Report")
+                            )
+                            Toast.makeText(context, "Non-Fatal event logged to Crashlytics!", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF9F1C))
+                    ) {
+                        Text("Test Non-Fatal (Diagnostic Report)")
+                    }
                 }
             },
             confirmButton = {
