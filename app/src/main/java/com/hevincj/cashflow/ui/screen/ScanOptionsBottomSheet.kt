@@ -893,9 +893,7 @@ private fun QrFrame(modifier: Modifier = Modifier) {
         drawLine(greenColor, Offset(size.width, size.height), Offset(size.width - lineLength, size.height), strokeWidth)
         drawLine(greenColor, Offset(size.width, size.height), Offset(size.width, size.height - lineLength), strokeWidth)
     }
-}
-
-@Composable
+}@Composable
 private fun CardScannerView(
     selectedTab: Int,
     isFlashActive: Boolean,
@@ -908,24 +906,32 @@ private fun CardScannerView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    var cameraError by remember { mutableStateOf<String?>(null) }
+    var retryCount by remember { mutableIntStateOf(0) }
+
     val toneGenerator = remember {
         try {
             ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "ToneGenerator initialization failed: ${e.message}", e)
             null
         }
     }
 
     val barcodeScanner = remember {
-        val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(
-                Barcode.FORMAT_UPC_A,
-                Barcode.FORMAT_EAN_13,
-                Barcode.FORMAT_QR_CODE
-            )
-            .build()
-        BarcodeScanning.getClient(options)
+        try {
+            val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(
+                    Barcode.FORMAT_UPC_A,
+                    Barcode.FORMAT_EAN_13,
+                    Barcode.FORMAT_QR_CODE
+                )
+                .build()
+            BarcodeScanning.getClient(options)
+        } catch (e: Throwable) {
+            com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "BarcodeScanner initialization failed: ${e.message}", e)
+            null
+        }
     }
     
     // Crucial: Wrap callbacks and selections in rememberUpdatedState to prevent stale state capture by CameraX analyzer closures!
@@ -940,9 +946,13 @@ private fun CardScannerView(
 
     DisposableEffect(Unit) {
         onDispose {
-            cameraExecutor.shutdown()
-            toneGenerator?.release()
-            barcodeScanner.close()
+            try {
+                cameraExecutor.shutdown()
+                toneGenerator?.release()
+                barcodeScanner?.close()
+            } catch (e: Throwable) {
+                com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Cleanup error: ${e.message}", e)
+            }
         }
     }
 
@@ -950,151 +960,214 @@ private fun CardScannerView(
     LaunchedEffect(isFlashActive, cameraControlState) {
         try {
             cameraControlState?.enableTorch(isFlashActive)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Torch activation failed: ${e.message}", e)
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { ctx ->
-                val previewView = PreviewView(ctx).apply {
-                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+    if (cameraError != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1E293B))
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Rounded.Warning,
+                    contentDescription = "Camera Error",
+                    tint = Color(0xFFFFB300),
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Camera Unavailable",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = cameraError ?: "Unable to access camera hardware.",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            cameraError = null
+                            retryCount++
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = IncomePurpleColor),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Retry", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            currentOnDismiss()
+                            currentRootNavController.navigate("receipt_scan")
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Receipt Scan", fontSize = 12.sp, color = Color.White)
+                    }
                 }
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+            }
+        }
+    } else {
+        Box(modifier = Modifier.fillMaxSize()) {
+            key(retryCount) {
+                AndroidView(
+                    factory = { ctx ->
+                        val previewView = PreviewView(ctx)
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
-                cameraProviderFuture.addListener({
-                    try {
-                        val cameraProvider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
+                        cameraProviderFuture.addListener({
+                            try {
+                                val cameraProvider = cameraProviderFuture.get()
+                                val preview = Preview.Builder()
+                                    .build()
+                                    .also {
+                                        it.setSurfaceProvider(previewView.surfaceProvider)
+                                    }
 
-                        val resolutionSelector = ResolutionSelector.Builder()
-                            .setResolutionStrategy(
-                                ResolutionStrategy(
-                                    Size(1280, 720),
-                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
-                                )
-                            )
-                            .build()
+                                val imageAnalysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .build()
 
-                        val imageAnalysis = ImageAnalysis.Builder()
-                            .setResolutionSelector(resolutionSelector)
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
+                                if (barcodeScanner != null) {
+                                    imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                        try {
+                                            if (currentScanningEnabled && (currentSelectedTab == 0 || currentSelectedTab == 1)) {
+                                                processImageProxy(
+                                                    scanner = barcodeScanner,
+                                                    imageProxy = imageProxy,
+                                                    onSuccess = { barcode ->
+                                                        if (isScanningEnabled) {
+                                                            val barcodeValue = barcode.rawValue ?: return@processImageProxy
+                                                            if (currentSelectedTab == 0) {
+                                                                val isUrl = barcodeValue.startsWith("http://", ignoreCase = true) ||
+                                                                        barcodeValue.startsWith("https://", ignoreCase = true) ||
+                                                                        barcodeValue.startsWith("www.", ignoreCase = true) ||
+                                                                        barcodeValue.contains("://", ignoreCase = true) ||
+                                                                        barcodeValue.startsWith("upi://", ignoreCase = true)
+                                                                val isFullBarcode = barcodeValue.length >= 12 && barcodeValue.all { it.isDigit() }
+                                                                if (!isUrl && isFullBarcode) {
+                                                                    val rect = barcode.boundingBox
+                                                                    if (rect != null) {
+                                                                        val marginX = imageProxy.width * 0.15f
+                                                                        val marginY = imageProxy.height * 0.20f
+                                                                        val isFullyInside = rect.left >= marginX &&
+                                                                                rect.right <= (imageProxy.width - marginX) &&
+                                                                                rect.top >= marginY &&
+                                                                                rect.bottom <= (imageProxy.height - marginY)
 
-                        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                            // Read updated state delegates dynamically inside the background thread analyzer
-                            if (currentScanningEnabled && (currentSelectedTab == 0 || currentSelectedTab == 1)) {
-                                processImageProxy(
-                                    scanner = barcodeScanner,
-                                    imageProxy = imageProxy,
-                                    onSuccess = { barcode ->
-                                        if (isScanningEnabled) {
-                                            val barcodeValue = barcode.rawValue ?: return@processImageProxy
-                                            if (currentSelectedTab == 0) {
-                                                val isUrl = barcodeValue.startsWith("http://", ignoreCase = true) ||
-                                                        barcodeValue.startsWith("https://", ignoreCase = true) ||
-                                                        barcodeValue.startsWith("www.", ignoreCase = true) ||
-                                                        barcodeValue.contains("://", ignoreCase = true) ||
-                                                        barcodeValue.startsWith("upi://", ignoreCase = true)
-                                                val isFullBarcode = barcodeValue.length >= 12 && barcodeValue.all { it.isDigit() }
-                                                if (!isUrl && isFullBarcode) {
-                                                    val rect = barcode.boundingBox
-                                                    if (rect != null) {
-                                                        // Centering constraint (middle 70% width and 60% height region)
-                                                        val marginX = imageProxy.width * 0.15f
-                                                        val marginY = imageProxy.height * 0.20f
-                                                        val isFullyInside = rect.left >= marginX &&
-                                                                rect.right <= (imageProxy.width - marginX) &&
-                                                                rect.top >= marginY &&
-                                                                rect.bottom <= (imageProxy.height - marginY)
+                                                                        if (isFullyInside) {
+                                                                            isScanningEnabled = false
+                                                                            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+                                                                            triggerVibration(context)
 
-                                                        if (isFullyInside) {
-                                                            isScanningEnabled = false
-                                                            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                                                            triggerVibration(context)
-
-                                                            // Async navigation trigger using updated ViewModel & controller
-                                                            viewModel.lookupSingleBarcode(barcodeValue) { product ->
-                                                                currentOnDismiss()
-                                                                val isProductValid = product != null &&
-                                                                    com.hevincj.cashflow.utils.isProductValid(product.productName, barcodeValue)
-                                                                if (isProductValid) {
-                                                                    currentRootNavController.navigate(
-                                                                        "add_transaction?" +
-                                                                        "title=${product!!.productName}" +
-                                                                        "&amount=${product.price ?: ""}" +
-                                                                        "&category=${product.category}" +
-                                                                        "&barcode=$barcodeValue"
-                                                                    )
-                                                                } else {
-                                                                    currentRootNavController.navigate("add_transaction?barcode=$barcodeValue")
+                                                                            viewModel.lookupSingleBarcode(barcodeValue) { product ->
+                                                                                currentOnDismiss()
+                                                                                val isProductValid = product != null &&
+                                                                                    com.hevincj.cashflow.utils.isProductValid(product.productName, barcodeValue)
+                                                                                if (isProductValid) {
+                                                                                    currentRootNavController.navigate(
+                                                                                        "add_transaction?" +
+                                                                                        "title=${product!!.productName}" +
+                                                                                        "&amount=${product.price ?: ""}" +
+                                                                                        "&category=${product.category}" +
+                                                                                        "&barcode=$barcodeValue"
+                                                                                    )
+                                                                                } else {
+                                                                                    currentRootNavController.navigate("add_transaction?barcode=$barcodeValue")
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                // Tab 1: UPI QR Codes
+                                                                if (barcodeValue.startsWith("upi://", ignoreCase = true)) {
+                                                                    isScanningEnabled = false
+                                                                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+                                                                    triggerVibration(context)
+                                                                    currentOnUpiQrScanned(barcodeValue)
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                }
+                                                )
                                             } else {
-                                                // Tab 1: UPI QR Codes
-                                                if (barcodeValue.startsWith("upi://", ignoreCase = true)) {
-                                                    isScanningEnabled = false
-                                                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                                                    triggerVibration(context)
-                                                    currentOnUpiQrScanned(barcodeValue)
-                                                }
+                                                imageProxy.close()
                                             }
+                                        } catch (e: Throwable) {
+                                            com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "Analyzer execution error", e)
+                                            imageProxy.close()
                                         }
                                     }
+                                }
+
+                                val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                                    CameraSelector.DEFAULT_BACK_CAMERA
+                                } else if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                                    CameraSelector.DEFAULT_FRONT_CAMERA
+                                } else {
+                                    null
+                                }
+
+                                if (cameraSelector == null) {
+                                    cameraError = "No camera hardware detected on device."
+                                    com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "No back or front camera available on device")
+                                    return@addListener
+                                }
+
+                                cameraProvider.unbindAll()
+                                val camera = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalysis
                                 )
-                            } else {
-                                imageProxy.close()
+                                cameraControlState = camera.cameraControl
+                                onFlashControlReady(camera.cameraControl)
+                            } catch (e: Throwable) {
+                                cameraError = "Failed to start camera: ${e.localizedMessage ?: "Unknown hardware error"}"
+                                com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "Camera setup or binding failed", e)
                             }
-                        }
+                        }, ContextCompat.getMainExecutor(ctx))
 
-                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                        cameraProvider.unbindAll()
-                        val camera = cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            imageAnalysis
-                        )
-                        cameraControlState = camera.cameraControl
-                        onFlashControlReady(camera.cameraControl)
-                    } catch (e: Exception) {
-                        com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "Camera setup or binding failed", e)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
-                previewView
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Tint overlay inside card depending on tab
-        if (selectedTab == 1) {
-            // Indigo gradient overlay tint
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF635BFF).copy(alpha = 0.55f),
-                                Color(0xFF3F51B5).copy(alpha = 0.65f)
+            // Tint overlay inside card depending on tab
+            if (selectedTab == 1) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF635BFF).copy(alpha = 0.55f),
+                                    Color(0xFF3F51B5).copy(alpha = 0.65f)
+                                )
                             )
                         )
-                    )
-            )
-        } else {
-            // Clean view for Receipts (with a very soft dark filter)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.05f))
-            )
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.05f))
+                )
+            }
         }
     }
 }
@@ -1125,7 +1198,7 @@ private fun processImageProxy(
         } else {
             imageProxy.close()
         }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "Exception in processImageProxy", e)
         imageProxy.close()
     }

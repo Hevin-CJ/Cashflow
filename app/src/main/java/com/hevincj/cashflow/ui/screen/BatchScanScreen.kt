@@ -364,17 +364,27 @@ private fun BatchScanContent(
                                 )
                             }
 
-                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                            val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                                CameraSelector.DEFAULT_BACK_CAMERA
+                            } else if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                                CameraSelector.DEFAULT_FRONT_CAMERA
+                            } else {
+                                null
+                            }
 
-                            cameraProvider.unbindAll()
-                            val camera = cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                imageAnalysis
-                            )
-                            cameraControlState = camera.cameraControl
-                        } catch (e: Exception) {
+                            if (cameraSelector != null) {
+                                cameraProvider.unbindAll()
+                                val camera = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalysis
+                                )
+                                cameraControlState = camera.cameraControl
+                            } else {
+                                com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "No available camera found on device")
+                            }
+                        } catch (e: Throwable) {
                             com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "Camera setup or binding failed", e)
                         }
                     }, ContextCompat.getMainExecutor(ctx))
