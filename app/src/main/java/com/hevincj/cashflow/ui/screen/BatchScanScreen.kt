@@ -243,7 +243,7 @@ private fun BatchScanContent(
         try {
             cameraControlState?.enableTorch(isFlashActive)
         } catch (e: Exception) {
-            Log.e("BatchScanScreen", "Torch activation failed", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation failed: ${e.message}", e)
         }
     }
 
@@ -252,7 +252,7 @@ private fun BatchScanContent(
         try {
             ToneGenerator(AudioManager.STREAM_MUSIC, 100)
         } catch (e: Exception) {
-            Log.e("BatchScanScreen", "ToneGenerator initialization failed", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "ToneGenerator initialization failed: ${e.message}", e)
             null
         }
     }
@@ -375,7 +375,7 @@ private fun BatchScanContent(
                             )
                             cameraControlState = camera.cameraControl
                         } catch (e: Exception) {
-                            Log.e("BatchScanScreen", "Camera setup or binding failed", e)
+                            com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "Camera setup or binding failed", e)
                         }
                     }, ContextCompat.getMainExecutor(ctx))
 
@@ -700,7 +700,7 @@ private fun processImageProxy(
                     }
                 }
                 .addOnFailureListener {
-                    Log.e("BatchScanScreen", "Barcode analysis failed", it)
+                    com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Barcode analysis failed: ${it.message}", it)
                 }
                 .addOnCompleteListener {
                     imageProxy.close()
@@ -709,7 +709,7 @@ private fun processImageProxy(
             imageProxy.close()
         }
     } catch (e: Exception) {
-        Log.e("BatchScanScreen", "Exception in processImageProxy", e)
+        com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "Exception in processImageProxy", e)
         imageProxy.close()
     }
 }

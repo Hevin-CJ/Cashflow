@@ -912,7 +912,7 @@ private fun CardScannerView(
         try {
             ToneGenerator(AudioManager.STREAM_MUSIC, 100)
         } catch (e: Exception) {
-            Log.e("CardScannerView", "ToneGenerator initialization failed", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "ToneGenerator initialization failed: ${e.message}", e)
             null
         }
     }
@@ -951,7 +951,7 @@ private fun CardScannerView(
         try {
             cameraControlState?.enableTorch(isFlashActive)
         } catch (e: Exception) {
-            Log.e("CardScannerView", "Torch activation failed", e)
+            com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Torch activation failed: ${e.message}", e)
         }
     }
 
@@ -1064,7 +1064,7 @@ private fun CardScannerView(
                         cameraControlState = camera.cameraControl
                         onFlashControlReady(camera.cameraControl)
                     } catch (e: Exception) {
-                        Log.e("CardScannerView", "Camera setup or binding failed", e)
+                        com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "Camera setup or binding failed", e)
                     }
                 }, ContextCompat.getMainExecutor(ctx))
 
@@ -1117,7 +1117,7 @@ private fun processImageProxy(
                     }
                 }
                 .addOnFailureListener {
-                    Log.e("CardScannerView", "Barcode extraction failed", it)
+                    com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Barcode extraction failed: ${it.message}", it)
                 }
                 .addOnCompleteListener {
                     imageProxy.close()
@@ -1126,7 +1126,7 @@ private fun processImageProxy(
             imageProxy.close()
         }
     } catch (e: Exception) {
-        Log.e("CardScannerView", "Exception in processImageProxy", e)
+        com.hevincj.cashflow.utils.CrashLogger.e("CardScannerView", "Exception in processImageProxy", e)
         imageProxy.close()
     }
 }

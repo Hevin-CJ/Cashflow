@@ -28,6 +28,12 @@ class CashFlowApp : Application(), Configuration.Provider {
     }
 
     private fun setupCrashReporting() {
+        try {
+            val crashlytics = com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance()
+            crashlytics.setCrashlyticsCollectionEnabled(true)
+            crashlytics.sendUnsentReports()
+        } catch (_: Throwable) {}
+
         com.hevincj.cashflow.utils.CrashLogger.setCustomKey("version_name", BuildConfig.VERSION_NAME)
         com.hevincj.cashflow.utils.CrashLogger.setCustomKey("version_code", BuildConfig.VERSION_CODE)
         com.hevincj.cashflow.utils.CrashLogger.setCustomKey("build_type", BuildConfig.BUILD_TYPE)
