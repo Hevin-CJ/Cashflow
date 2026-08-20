@@ -1,7 +1,6 @@
 package com.hevincj.cashflow.di
 
 import android.content.Context
-import android.os.SystemClock
 import com.hevincj.cashflow.data.local.TokenManager
 import com.hevincj.cashflow.data.remote.api.AuthApi
 import com.hevincj.cashflow.data.remote.api.UserApi
@@ -20,13 +19,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.CertificatePinner
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
@@ -57,37 +53,6 @@ object NetworkModule {
             }
         }
 
-        // FIX 2: Local anonymous Retry Interceptor with progressive delays to absorb temporary link drops
-        val retryInterceptor = Interceptor { chain ->
-            val request = chain.request()
-            var attempt = 0
-            var delay = 1000L
-            var lastException: java.io.IOException? = null
-
-            while (attempt < 3) {
-                var response: okhttp3.Response? = null
-                try {
-                    response = chain.proceed(request)
-                    if (response.isSuccessful || response.code < 500) {
-                        return@Interceptor response
-                    } else {
-                        response.close()
-                    }
-                } catch (e: java.io.IOException) {
-                    com.hevincj.cashflow.utils.CrashLogger.w("NetworkModule", "Retry attempt $attempt failed for ${request.url.encodedPath}: ${e.message}", e)
-                    lastException = e
-                    response?.close()
-                }
-                attempt++
-                if (attempt >= 3) break
-                SystemClock.sleep(delay)
-                delay *= 2
-            }
-            val finalEx = lastException ?: java.io.IOException("Network processing failed after 3 attempts for ${request.url.encodedPath}")
-            com.hevincj.cashflow.utils.CrashLogger.e("NetworkModule", "Network retry exhausted for ${request.url.encodedPath}", finalEx)
-            throw finalEx
-        }
-
         val certificatePinner = CertificatePinner.Builder()
             // Google Trust Services (GTS) Roots
             .add("cashflow-ktor-backend-703934017156.asia-south2.run.app", "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=") // GTS Root R1
@@ -102,7 +67,7 @@ object NetworkModule {
             .build()
 
         return OkHttpClient.Builder()
-            // FIX 3: Increase connection allocation boundaries to survive Cloud Run cold container boots
+            // Connection allocation boundaries to survive Cloud Run cold container boots
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -110,7 +75,6 @@ object NetworkModule {
             .certificatePinner(certificatePinner)
             .addInterceptor(authInterceptor)
             .addInterceptor(SignatureInterceptor())
-            .addInterceptor(retryInterceptor)
             .addInterceptor(loggingInterceptor)
             .build()
     }

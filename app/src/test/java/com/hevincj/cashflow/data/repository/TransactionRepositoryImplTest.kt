@@ -398,6 +398,34 @@ class TransactionRepositoryImplTest {
         assertEquals(1, insertCaptor.firstValue.size)
         assertEquals("server_other", insertCaptor.firstValue[0].serverId)
     }
+
+    @Test
+    fun testSyncTransactionsDeduplicatesRemoteRecurringDuplicatesOnSameDate() = runTest {
+        val targetTimestamp = 1771500000000L
+        val recurringId = "rec_subscription_spotify_99"
+
+        whenever(dao.getUnsyncedTransactions()).thenReturn(emptyList())
+        whenever(dao.getAllTransactionsList()).thenReturn(emptyList())
+
+        // Remote contains 2 duplicates from concurrent multi-device posts
+        val remoteDtos = listOf(
+            TransactionDto("server_dup_1", "user", 119.0, "EXPENSE", "ENTERTAINMENT", "Spotify", targetTimestamp, recurringId),
+            TransactionDto("server_dup_2", "user", 119.0, "EXPENSE", "ENTERTAINMENT", "Spotify", targetTimestamp, recurringId)
+        )
+        whenever(api.getTransactions(any(), any())).thenReturn(Response.success(remoteDtos))
+
+        val result = repository.syncTransactions()
+        assertNull(result)
+
+        val deleteCaptor = argumentCaptor<List<TransactionEntity>>()
+        val insertCaptor = argumentCaptor<List<TransactionEntity>>()
+        verify(dao).refreshSyncedTransactions(deleteCaptor.capture(), insertCaptor.capture())
+
+        // Only 1 entity should be passed to toInsert
+        assertEquals(1, insertCaptor.firstValue.size)
+        assertEquals("server_dup_1", insertCaptor.firstValue[0].serverId)
+        assertEquals(recurringId, insertCaptor.firstValue[0].recurringExpenseId)
+    }
 }
 
 

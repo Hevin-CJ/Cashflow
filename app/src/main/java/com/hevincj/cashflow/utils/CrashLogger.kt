@@ -21,6 +21,14 @@ object CrashLogger {
         }
     }
 
+    private fun isCanceledIoException(t: Throwable?): Boolean {
+        if (t == null) return false
+        if (t is java.io.IOException && t.message == "Canceled") return true
+        val cause = t.cause
+        if (cause != null && cause is java.io.IOException && cause.message == "Canceled") return true
+        return false
+    }
+
     fun d(tag: String, message: String) {
         if (BuildConfig.DEBUG) {
             Log.d(tag, message)
@@ -48,7 +56,7 @@ object CrashLogger {
             val crashlytics = getCrashlyticsSafe()
             val logMessage = if (throwable != null) "[$tag] WARN: $message - ${throwable.message}" else "[$tag] WARN: $message"
             crashlytics?.log(logMessage)
-            if (throwable != null) {
+            if (throwable != null && !isCanceledIoException(throwable)) {
                 crashlytics?.recordException(throwable)
             }
         } catch (_: Throwable) {}
@@ -65,8 +73,10 @@ object CrashLogger {
         try {
             val crashlytics = getCrashlyticsSafe()
             crashlytics?.log("[$tag] ERROR: $message")
-            val targetException = throwable ?: Exception("[$tag] $message")
-            crashlytics?.recordException(targetException)
+            if (!isCanceledIoException(throwable)) {
+                val targetException = throwable ?: Exception("[$tag] $message")
+                crashlytics?.recordException(targetException)
+            }
         } catch (_: Throwable) {}
     }
 
@@ -74,6 +84,7 @@ object CrashLogger {
         if (BuildConfig.DEBUG) {
             Log.e("CrashLogger", "Recorded non-fatal exception", throwable)
         }
+        if (isCanceledIoException(throwable)) return
         try {
             getCrashlyticsSafe()?.recordException(throwable)
         } catch (_: Throwable) {}

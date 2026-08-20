@@ -104,6 +104,18 @@ class TransactionRepositoryImpl @Inject constructor(
                         }
                     }
 
+                    val zoneId = java.time.ZoneId.systemDefault()
+                    val deduplicatedRemote = remoteEntities.distinctBy { entity ->
+                        if (!entity.recurringExpenseId.isNullOrBlank()) {
+                            val localDate = java.time.Instant.ofEpochMilli(entity.timestamp)
+                                .atZone(zoneId)
+                                .toLocalDate()
+                            "${entity.recurringExpenseId}::$localDate"
+                        } else {
+                            entity.serverId ?: entity.id.toString()
+                        }
+                    }
+
                     val remoteServerIds = activeDtos.map { it.id }.toSet()
                     val oldestRemoteTimestamp = activeDtos.minOfOrNull { it.timestamp } ?: 0L
 
@@ -116,7 +128,7 @@ class TransactionRepositoryImpl @Inject constructor(
 
                     dao.refreshSyncedTransactions(
                         toDelete = toDelete,
-                        toInsert = remoteEntities
+                        toInsert = deduplicatedRemote
                     )
                 }
                 return@withContext null

@@ -63,7 +63,8 @@ class TransactionSyncManager @Inject constructor(
                         description = entity.title, // Preserves local title as description on server
                         barcode = entity.barcode,
                         productName = entity.productName,
-                        recurringExpenseId = resolvedRecurringId
+                        recurringExpenseId = resolvedRecurringId,
+                        timestamp = entity.timestamp
                     )
 
                     if (entity.serverId != null) {
