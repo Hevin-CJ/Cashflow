@@ -4,8 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -115,9 +113,12 @@ import com.hevincj.cashflow.ui.theme.TextPrimary
 import com.hevincj.cashflow.ui.theme.TextSecondary
 import com.hevincj.cashflow.ui.theme.BackgroundGray
 import com.hevincj.cashflow.ui.theme.CardBackground
+import com.hevincj.cashflow.ui.theme.IncomePurpleColor
 import com.hevincj.cashflow.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -238,24 +239,45 @@ private fun BatchScanContent(
 
     var isFlashActive by remember { mutableStateOf(false) }
     var cameraControlState by remember { mutableStateOf<CameraControl?>(null) }
+    var cameraProviderState by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var isInitializingCamera by remember { mutableStateOf(true) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
+
+    // Async timeout-guarded CameraProvider initialization (3 seconds max)
+    LaunchedEffect(Unit) {
+        isInitializingCamera = true
+        cameraError = null
+        try {
+            val provider = withTimeoutOrNull(3000L) {
+                withContext(Dispatchers.IO) {
+                    val future = ProcessCameraProvider.getInstance(context)
+                    future.get()
+                }
+            }
+            if (provider != null) {
+                cameraProviderState = provider
+                isInitializingCamera = false
+            } else {
+                cameraError = "Camera service timed out."
+                isInitializingCamera = false
+                com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "CameraProvider getInstance timed out after 3000ms")
+            }
+        } catch (e: Throwable) {
+            cameraError = "Failed to initialize camera: ${e.localizedMessage ?: "Hardware error"}"
+            isInitializingCamera = false
+            com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "CameraProvider acquisition error: ${e.message}", e)
+        }
+    }
 
     LaunchedEffect(isFlashActive, cameraControlState) {
         try {
             cameraControlState?.enableTorch(isFlashActive)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation failed: ${e.message}", e)
         }
     }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    val toneGenerator = remember {
-        try {
-            ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-        } catch (e: Exception) {
-            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "ToneGenerator initialization failed: ${e.message}", e)
-            null
-        }
-    }
 
     val barcodeScanner = remember {
         val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
@@ -269,18 +291,21 @@ private fun BatchScanContent(
 
     DisposableEffect(Unit) {
         onDispose {
-            cameraExecutor.shutdown()
-            toneGenerator?.release()
-            barcodeScanner.close()
+            try {
+                cameraExecutor.shutdown()
+                barcodeScanner.close()
+                cameraProviderState?.unbindAll()
+            } catch (e: Throwable) {
+                com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Cleanup error: ${e.message}", e)
+            }
         }
     }
 
-    // Collect ScanEvents for Haptic/Beep triggers
+    // Collect ScanEvents for Haptic/Vibrate triggers
     LaunchedEffect(Unit) {
         viewModel.eventFlow.collect { event ->
             when (event) {
                 is ScanEvent.BeepAndVibrate -> {
-                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
                     triggerVibration(context)
                 }
                 is ScanEvent.Vibrate -> {
@@ -302,31 +327,18 @@ private fun BatchScanContent(
                 .weight(1f)
                 .background(Color.Black)
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    val previewView = PreviewView(ctx).apply {
-                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                    }
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+            if (cameraProviderState != null) {
+                AndroidView(
+                    factory = { ctx ->
+                        val previewView = PreviewView(ctx)
+                        val cameraProvider = cameraProviderState!!
 
-                    cameraProviderFuture.addListener({
                         try {
-                            val cameraProvider = cameraProviderFuture.get()
                             val preview = Preview.Builder().build().also {
                                 it.setSurfaceProvider(previewView.surfaceProvider)
                             }
 
-                            val resolutionSelector = ResolutionSelector.Builder()
-                                .setResolutionStrategy(
-                                    ResolutionStrategy(
-                                        Size(1280, 720),
-                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
-                                    )
-                                )
-                                .build()
-
                             val imageAnalysis = ImageAnalysis.Builder()
-                                .setResolutionSelector(resolutionSelector)
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
 
@@ -345,7 +357,6 @@ private fun BatchScanContent(
                                         if (!isUrl && isFullBarcode) {
                                             val rect = barcode.boundingBox
                                             if (rect != null) {
-                                                // Centering constraint (middle 70% width and 60% height region)
                                                 val marginX = imageProxy.width * 0.15f
                                                 val marginY = imageProxy.height * 0.20f
                                                 val isFullyInside = rect.left >= marginX &&
@@ -387,12 +398,19 @@ private fun BatchScanContent(
                         } catch (e: Throwable) {
                             com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "Camera setup or binding failed", e)
                         }
-                    }, ContextCompat.getMainExecutor(ctx))
 
-                    previewView
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (isInitializingCamera) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = IncomePurpleColor, modifier = Modifier.size(36.dp))
+                }
+            }
 
             // Transparent overlay aiming area box
             Box(
