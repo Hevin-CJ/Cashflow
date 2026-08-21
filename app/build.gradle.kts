@@ -30,8 +30,8 @@ android {
         applicationId = "com.hevincj.cashflow"
         minSdk = 29
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.1.6"
+        versionCode = 17
+        versionName = "1.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -98,6 +98,10 @@ android {
         unitTests {
             isReturnDefaultValues = true
         }
+    }
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 

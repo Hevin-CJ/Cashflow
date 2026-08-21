@@ -132,8 +132,16 @@ fun RootNavigation() {
         ) {
             ScanOptionsUi(
                 onDismissRequest = { rootNavController.popBackStack() },
-                onBatchBarcodeClick = { rootNavController.navigate("batch_scan") },
-                onReceiptScanClick = { rootNavController.navigate("receipt_scan") },
+                onBatchBarcodeClick = {
+                    rootNavController.navigate("batch_scan") {
+                        popUpTo("scan_options") { inclusive = true }
+                    }
+                },
+                onReceiptScanClick = {
+                    rootNavController.navigate("receipt_scan") {
+                        popUpTo("scan_options") { inclusive = true }
+                    }
+                },
                 onUpiQrClick = {}, // Handled internally in ScanOptionsUi
                 rootNavController = rootNavController
             )

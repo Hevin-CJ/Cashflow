@@ -712,7 +712,6 @@ fun ScanOptionsUi(
                         ActionButton(
                             text = "Bulk adding",
                             onClick = {
-                                onDismissRequest()
                                 onBatchBarcodeClick()
                             },
                             useGradient = false,
@@ -722,7 +721,6 @@ fun ScanOptionsUi(
                         ActionButton(
                             text = "Receipt AI scan",
                             onClick = {
-                                onDismissRequest()
                                 onReceiptScanClick()
                             },
                             useGradient = true,

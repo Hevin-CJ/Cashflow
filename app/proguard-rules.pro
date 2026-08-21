@@ -12,13 +12,13 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep attributes for Crashlytics to map stack trace line numbers
+-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Preserve exception classes for accurate Crashlytics reporting
+-keep public class * extends java.lang.Exception
+-keepclassmembers class com.google.firebase.crashlytics.** { *; }
+-dontwarn com.google.firebase.crashlytics.**
 
 # Keep API request/response DTOs to prevent Gson serialization failures
 -keep class com.hevincj.cashflow.data.remote.models.** { *; }
