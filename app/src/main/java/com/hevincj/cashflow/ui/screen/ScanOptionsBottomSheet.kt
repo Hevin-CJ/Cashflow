@@ -287,6 +287,59 @@ fun ScanOptionsUi(
         )
     }
 
+    // Gallery Image Picker for Barcode tab
+    val barcodeGalleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val image = InputImage.fromFilePath(context, uri)
+                val scanner = BarcodeScanning.getClient()
+                scanner.process(image)
+                    .addOnSuccessListener { barcodes ->
+                        val validBarcode = barcodes.firstOrNull { barcode ->
+                            val raw = barcode.rawValue ?: ""
+                            val isUrl = raw.startsWith("http://", ignoreCase = true) ||
+                                    raw.startsWith("https://", ignoreCase = true) ||
+                                    raw.startsWith("www.", ignoreCase = true) ||
+                                    raw.contains("://", ignoreCase = true) ||
+                                    raw.startsWith("upi://", ignoreCase = true)
+                            val isDigits = raw.length >= 12 && raw.all { it.isDigit() }
+                            !isUrl && isDigits
+                        }
+                        if (validBarcode != null) {
+                            val barcodeValue = validBarcode.rawValue ?: ""
+                            triggerVibration(context)
+                            viewModel.lookupSingleBarcode(barcodeValue) { product ->
+                                onDismissRequest()
+                                val isProductValid = product != null &&
+                                        com.hevincj.cashflow.utils.isProductValid(product.productName, barcodeValue)
+                                if (isProductValid) {
+                                    rootNavController.navigate(
+                                        "add_transaction?" +
+                                                "title=${product!!.productName}" +
+                                                "&amount=${product.price ?: ""}" +
+                                                "&category=${product.category}" +
+                                                "&barcode=$barcodeValue"
+                                    )
+                                } else {
+                                    rootNavController.navigate("add_transaction?barcode=$barcodeValue")
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "No barcode detected in selected image", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(context, "Failed to scan image: ${it.message}", Toast.LENGTH_SHORT).show()
+                    }
+            } catch (e: Exception) {
+                com.hevincj.cashflow.utils.CrashLogger.e("ScanOptionsBottomSheet", "Gallery barcode scan failed", e)
+                Toast.makeText(context, "Unable to read selected image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // Animate Card Height depending on active scanner mode:
     // Tab 0 (Receipts/Barcode): Horizontal rectangle aspect ratio (220.dp height)
     // Tab 1 (QR Code): Square aspect ratio (320.dp height)
@@ -298,19 +351,19 @@ fun ScanOptionsUi(
 
     // Morphing background gradient colors using official app brand colors
     val startColor by animateColorAsState(
-        targetValue = if (selectedTab == 0) Color(0xFF4FC3F7) else Color(0xFF9575CD), // GradientLightBlue vs GradientPurple
+        targetValue = if (selectedTab == 0) Color(0xFF4FC3F7) else Color.Transparent, // GradientLightBlue vs Transparent
         animationSpec = tween(600, easing = LinearOutSlowInEasing),
         label = "StartGradientColor"
     )
     val endColor by animateColorAsState(
-        targetValue = if (selectedTab == 0) Color(0xFF9575CD) else Color(0xFF8121FD), // GradientPurple vs IncomePurpleColor
+        targetValue = if (selectedTab == 0) Color(0xFF9575CD) else Color.Transparent, // GradientPurple vs Transparent
         animationSpec = tween(600, easing = LinearOutSlowInEasing),
         label = "EndGradientColor"
     )
 
     // Morphing ambient shadow spot color using official brand colors
     val shadowColor by animateColorAsState(
-        targetValue = if (selectedTab == 0) Color(0xFFFFD700) else Color(0xFF8121FD), // Gold vs IncomePurpleColor glow
+        targetValue = if (selectedTab == 0) Color(0xFFFFD700) else Color.Transparent, // Gold vs Transparent glow
         animationSpec = tween(600),
         label = "AmbientShadowColor"
     )
@@ -606,8 +659,11 @@ fun ScanOptionsUi(
                                         .background(Color.Black.copy(alpha = 0.35f))
                                         .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
                                         .clickable {
-                                            onDismissRequest()
-                                            onReceiptScanClick() // navigates to ReceiptScanScreen which handles gallery picking
+                                            barcodeGalleryLauncher.launch(
+                                                androidx.activity.result.PickVisualMediaRequest(
+                                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                )
+                                            )
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1165,19 +1221,12 @@ private fun CardScannerView(
                 )
             }
 
-            // Tint overlay inside card depending on tab
+            // Tint overlay inside card depending on tab (neutral/transparent for high visibility)
             if (selectedTab == 1) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF635BFF).copy(alpha = 0.55f),
-                                    Color(0xFF3F51B5).copy(alpha = 0.65f)
-                                )
-                            )
-                        )
+                        .background(Color.Transparent)
                 )
             } else {
                 Box(

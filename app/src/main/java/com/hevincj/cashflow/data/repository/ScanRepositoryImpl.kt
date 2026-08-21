@@ -107,27 +107,68 @@ class ScanRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun analyzeReceipt(imageBytes: ByteArray): ReceiptScanResult? = withContext(Dispatchers.IO) {
+    override suspend fun analyzeReceipt(imageBytes: ByteArray): ReceiptScanResult? {
+        val outcome = analyzeReceiptWithOutcome(imageBytes)
+        return (outcome as? com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Success)?.result
+    }
+
+    override suspend fun analyzeReceiptWithOutcome(imageBytes: ByteArray): com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome = withContext(Dispatchers.IO) {
         try {
             val requestBody = imageBytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
             val body = MultipartBody.Part.createFormData("file", "receipt.jpg", requestBody)
             val response = scanApi.analyzeReceipt(body)
             if (response.isSuccessful) {
-                val dto = response.body() ?: return@withContext null
-                ReceiptScanResult(
-                    merchant = dto.description,
-                    amount = dto.totalAmount,
-                    date = null,
-                    category = dto.category,
-                    description = dto.description
-                )
+                val dto = response.body()
+                if (dto != null) {
+                    com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Success(
+                        com.hevincj.cashflow.domain.models.ReceiptScanResult(
+                            merchant = dto.description,
+                            amount = dto.totalAmount,
+                            date = null,
+                            category = dto.category,
+                            description = dto.description
+                        )
+                    )
+                } else {
+                    com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error(
+                        message = "Empty response from receipt server",
+                        errorType = com.hevincj.cashflow.domain.models.ReceiptErrorType.SERVER_ERROR
+                    )
+                }
             } else {
-                com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Analyze receipt unsuccessful: ${response.code()}")
-                null
+                val errorBody = response.errorBody()?.string() ?: ""
+                val code = response.code()
+                val (msg, errType) = when {
+                    code == 400 -> "Receipt image is blurry or difficult to read. Please take a clearer photo." to com.hevincj.cashflow.domain.models.ReceiptErrorType.UNREADABLE_IMAGE
+                    code == 429 -> "AI service is busy with high traffic. Please retry in a few moments." to com.hevincj.cashflow.domain.models.ReceiptErrorType.RATE_LIMITED
+                    code == 500 && errorBody.contains("GEMINI_API_KEY", ignoreCase = true) -> "Gemini API key is not configured on the backend server." to com.hevincj.cashflow.domain.models.ReceiptErrorType.CONFIG_ERROR
+                    code in 500..599 -> "Server error ($code). Receipt analysis service temporarily unavailable." to com.hevincj.cashflow.domain.models.ReceiptErrorType.SERVER_ERROR
+                    else -> "Failed to analyze receipt (HTTP $code)." to com.hevincj.cashflow.domain.models.ReceiptErrorType.UNKNOWN
+                }
+                com.hevincj.cashflow.utils.CrashLogger.w("ScanRepositoryImpl", "Analyze receipt failed: $code $errorBody")
+                com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error(msg, errType)
             }
+        } catch (e: java.net.UnknownHostException) {
+            com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error(
+                message = "No internet connection. Please check your network and retry.",
+                errorType = com.hevincj.cashflow.domain.models.ReceiptErrorType.NETWORK_ERROR
+            )
+        } catch (e: java.net.SocketTimeoutException) {
+            com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error(
+                message = "Connection timed out. Please try with a clearer or smaller photo.",
+                errorType = com.hevincj.cashflow.domain.models.ReceiptErrorType.NETWORK_ERROR
+            )
+        } catch (e: java.net.ConnectException) {
+            com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error(
+                message = "Unable to connect to receipt backend server.",
+                errorType = com.hevincj.cashflow.domain.models.ReceiptErrorType.NETWORK_ERROR
+            )
         } catch (e: Exception) {
             com.hevincj.cashflow.utils.CrashLogger.e("ScanRepositoryImpl", "Error parsing receipt via backend", e)
-            null
+            com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error(
+                message = e.localizedMessage ?: "Unexpected error during receipt analysis.",
+                errorType = com.hevincj.cashflow.domain.models.ReceiptErrorType.UNKNOWN
+            )
         }
     }
 

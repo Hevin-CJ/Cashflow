@@ -280,20 +280,25 @@ private fun BatchScanContent(
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
     val barcodeScanner = remember {
-        val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(
-                Barcode.FORMAT_UPC_A,
-                Barcode.FORMAT_EAN_13
-            )
-            .build()
-        BarcodeScanning.getClient(options)
+        try {
+            val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(
+                    Barcode.FORMAT_UPC_A,
+                    Barcode.FORMAT_EAN_13
+                )
+                .build()
+            BarcodeScanning.getClient(options)
+        } catch (e: Throwable) {
+            com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "BarcodeScanner initialization failed: ${e.message}", e)
+            null
+        }
     }
 
     DisposableEffect(Unit) {
         onDispose {
             try {
                 cameraExecutor.shutdown()
-                barcodeScanner.close()
+                barcodeScanner?.close()
                 cameraProviderState?.unbindAll()
             } catch (e: Throwable) {
                 com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Cleanup error: ${e.message}", e)
@@ -713,10 +718,14 @@ private fun Modifier.batchScannerShimmerEffect(
 
 @SuppressLint("UnsafeOptInUsageError")
 private fun processImageProxy(
-    scanner: com.google.mlkit.vision.barcode.BarcodeScanner,
+    scanner: com.google.mlkit.vision.barcode.BarcodeScanner?,
     imageProxy: ImageProxy,
     onSuccess: (Barcode) -> Unit
 ) {
+    if (scanner == null) {
+        imageProxy.close()
+        return
+    }
     try {
         val mediaImage = imageProxy.image
         if (mediaImage != null) {

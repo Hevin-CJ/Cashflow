@@ -34,6 +34,11 @@ import androidx.compose.material.icons.rounded.Payment
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Close
@@ -238,6 +243,7 @@ fun HomeScreenContent(
     }
 
     var showBatchItemsTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var showTransactionDetails by remember { mutableStateOf<Transaction?>(null) }
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     var isSyncErrorDismissed by remember { mutableStateOf(false) }
     var isBudgetWarningDismissed by remember { mutableStateOf(false) }
@@ -301,6 +307,17 @@ fun HomeScreenContent(
                 }
             }
         }
+    }
+
+    if (showTransactionDetails != null) {
+        com.hevincj.cashflow.ui.components.TransactionDetailDialog(
+            transaction = showTransactionDetails!!,
+            onDismissRequest = { showTransactionDetails = null },
+            onEditClick = { id ->
+                showTransactionDetails = null
+                onNavigateToAddTransaction(id)
+            }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
@@ -422,6 +439,7 @@ fun HomeScreenContent(
                         transaction = transaction,
                         onInitiateDelete = { transactionToDelete = it },
                         onNavigateToAddTransaction = onNavigateToAddTransaction,
+                        onTransactionLongClick = { showTransactionDetails = it },
                         onBatchIconClick = onBatchIconClickLambda,
                         isScrolling = isScrolling,
                         modifier = Modifier.animateItem(
@@ -588,6 +606,15 @@ fun TransactionItem(
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(Icons.Rounded.CloudOff, contentDescription = "Not Synced", tint = Color.Gray, modifier = Modifier.size(16.dp))
                     }
+                    if (!transaction.description.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.Description,
+                            contentDescription = "Has Note",
+                            tint = Color(0xFF635BFF).copy(alpha = 0.75f),
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                     // FIX: Cache status calculation inside Domain layer map block in a real app,
                     // but for inline rendering stability, this evaluation is kept minimal.
                     if (transaction.description?.contains("Batch scanned barcode") == true) {
@@ -615,13 +642,14 @@ fun Modifier.shimmerEffect(translateProvider: () -> Float): Modifier = this
         drawRect(brush = brush)
     }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Suppress("DEPRECATION")
 @Composable
 fun SwipeableTransactionItem(
     transaction: Transaction,
     onInitiateDelete: (Transaction) -> Unit,
     onNavigateToAddTransaction: (String?) -> Unit,
+    onTransactionLongClick: (Transaction) -> Unit = {},
     onBatchIconClick: () -> Unit,
     modifier: Modifier = Modifier,
     isScrolling: Boolean = false,
@@ -632,6 +660,7 @@ fun SwipeableTransactionItem(
     positiveGreen: Color = PositiveGreen,
     negativeRed: Color = NegativeRed
 ) {
+    val haptic = LocalHapticFeedback.current
     val onClick = remember(transaction.id, onNavigateToAddTransaction) { { onNavigateToAddTransaction(transaction.id) } }
     val currentOnInitiateDelete by rememberUpdatedState(onInitiateDelete)
     val currentTransaction by rememberUpdatedState(transaction)
@@ -677,7 +706,13 @@ fun SwipeableTransactionItem(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(itemBackgroundGray)
-                    .clickable(onClick = onClick)
+                    .combinedClickable(
+                        onClick = onClick,
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onTransactionLongClick(transaction)
+                        }
+                    )
             ) {
                 TransactionItem(
                     transaction = transaction,

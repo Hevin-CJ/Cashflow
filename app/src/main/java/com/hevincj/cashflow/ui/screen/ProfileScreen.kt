@@ -85,55 +85,7 @@ fun ProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     fun openSavedFile(uri: Uri, mimeType: String) {
-        val mimeCandidates = when (mimeType) {
-            "text/csv" -> listOf(
-                "text/csv",
-                "text/comma-separated-values",
-                "application/csv",
-                "application/vnd.ms-excel",
-                "text/plain",
-                "*/*"
-            )
-            "application/pdf" -> listOf(
-                "application/pdf",
-                "*/*"
-            )
-            else -> listOf(mimeType, "*/*")
-        }
-
-        var launched = false
-        for (candidate in mimeCandidates) {
-            try {
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, candidate)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                val chooser = Intent.createChooser(intent, "Open file").apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(chooser)
-                launched = true
-                break
-            } catch (e: Exception) {
-                // Try next candidate MIME type
-            }
-        }
-
-        if (!launched) {
-            try {
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = if (mimeType == "text/csv") "text/*" else mimeType
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                val shareChooser = Intent.createChooser(shareIntent, "Open or share file").apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(shareChooser)
-            } catch (e: Exception) {
-                Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show()
-            }
-        }
+        com.hevincj.cashflow.utils.FileOpener.openFile(context, uri, mimeType)
     }
 
     // CSV Launcher

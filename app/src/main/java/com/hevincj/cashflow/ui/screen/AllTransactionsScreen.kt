@@ -1,5 +1,10 @@
 package com.hevincj.cashflow.ui.screen
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.hevincj.cashflow.ui.components.TransactionDetailDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +56,7 @@ fun AllTransactionsScreen(
     // Freeze list updates locally during active scrolling to prevent recomposition stutter
     var pageLimit by remember { mutableStateOf(25) }
     var showBatchItemsTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var showTransactionDetails by remember { mutableStateOf<Transaction?>(null) }
     var activeTransactions by remember { mutableStateOf(filteredTransactions) }
 
     LaunchedEffect(filteredTransactions) {
@@ -225,6 +231,7 @@ fun AllTransactionsScreen(
                             transaction = transaction,
                             onDeleteClick = onDeleteClick,
                             onEditClick = onTransactionClick,
+                            onLongClick = { showTransactionDetails = it },
                             onBatchIconClick = { showBatchItemsTransaction = transaction },
                             isScrolling = isScrolling,
                             modifier = Modifier.fillMaxWidth()
@@ -233,6 +240,17 @@ fun AllTransactionsScreen(
                 }
             }
         }
+    }
+
+    if (showTransactionDetails != null) {
+        TransactionDetailDialog(
+            transaction = showTransactionDetails!!,
+            onDismissRequest = { showTransactionDetails = null },
+            onEditClick = { id ->
+                showTransactionDetails = null
+                onTransactionClick(id)
+            }
+        )
     }
 
     if (showBatchItemsTransaction != null) {
@@ -305,17 +323,19 @@ fun AllTransactionsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Suppress("DEPRECATION")
 @Composable
 fun SwipableTransactionRow(
     transaction: Transaction,
     onDeleteClick: (Transaction) -> Unit,
     onEditClick: (String) -> Unit,
+    onLongClick: (Transaction) -> Unit = {},
     onBatchIconClick: () -> Unit,
     isScrolling: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -388,7 +408,13 @@ fun SwipableTransactionRow(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(CardBackground)
-                    .clickable { onEditClick(transaction.id) }
+                    .combinedClickable(
+                        onClick = { onEditClick(transaction.id) },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onLongClick(transaction)
+                        }
+                    )
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 TransactionItem(

@@ -157,18 +157,22 @@ fun ReceiptScanScreen(
             Button(
                 onClick = {
                     val bytes = imageBytes ?: return@Button
-                    viewModel.analyzeReceipt(bytes) { result ->
-                        if (result != null) {
-                            Toast.makeText(context, "Receipt analyzed successfully!", Toast.LENGTH_SHORT).show()
-                            onNavigateToAddTransaction(
-                                result.merchant,
-                                result.amount,
-                                result.category,
-                                result.date,
-                                result.description
-                            )
-                        } else {
-                            Toast.makeText(context, "Failed to analyze receipt. Verify your API key.", Toast.LENGTH_LONG).show()
+                    viewModel.analyzeReceiptWithDetails(bytes) { outcome ->
+                        when (outcome) {
+                            is com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Success -> {
+                                val result = outcome.result
+                                Toast.makeText(context, "Receipt analyzed successfully!", Toast.LENGTH_SHORT).show()
+                                onNavigateToAddTransaction(
+                                    result.merchant,
+                                    result.amount,
+                                    result.category,
+                                    result.date,
+                                    result.description
+                                )
+                            }
+                            is com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome.Error -> {
+                                Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 },

@@ -347,6 +347,18 @@ class ScanViewModel @Inject constructor(
         }
     }
 
+    fun analyzeReceiptWithDetails(
+        bytes: ByteArray,
+        onOutcome: (com.hevincj.cashflow.domain.models.ReceiptAnalysisOutcome) -> Unit
+    ) {
+        _state.update { state -> state.copy(isAnalyzing = true) }
+        viewModelScope.launch {
+            val outcome = analyzeReceiptUseCase.analyze(bytes)
+            _state.update { state -> state.copy(isAnalyzing = false) }
+            onOutcome(outcome)
+        }
+    }
+
     fun lookupSingleBarcode(barcode: String, onResult: (ScanResult?) -> Unit) {
         viewModelScope.launch {
             val result = scanRepository.lookupBarcode(barcode)

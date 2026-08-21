@@ -85,8 +85,9 @@ private fun normalisePhone(raw: String): String {
 /**
  * Shows the UPI apps installed on the device.
  * When the user taps one, opens it with a UPI payment intent pre-filled
- * for [contactPhone] (as `<phone>@upi` VPA) and [contactName].
+ * for [contactPhone] and [contactName] using app-specific VPA routing.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun UpiAppPickerForContactDialog(
     contactName: String,
@@ -94,7 +95,17 @@ fun UpiAppPickerForContactDialog(
     onDismissRequest: () -> Unit
 ) {
     val context = LocalContext.current
-    val phone10 = remember(contactPhone) { normalisePhone(contactPhone) }
+    val phone10 = remember(contactPhone) { com.hevincj.cashflow.utils.UpiIntentBuilder.normalisePhone(contactPhone) }
+    var selectedHandle by remember { mutableStateOf<String?>(null) } // null means "Auto"
+
+    val handleOptions = listOf(
+        "Auto" to null,
+        "@ybl (PhonePe)" to "@ybl",
+        "@paytm (Paytm)" to "@paytm",
+        "@okaxis (GPay)" to "@okaxis",
+        "@upi (BHIM)" to "@upi",
+        "@apl (Amazon)" to "@apl"
+    )
 
     // Discover installed UPI payment apps
     val installedApps: List<UpiPayApp> = remember {
@@ -169,8 +180,30 @@ fun UpiAppPickerForContactDialog(
                     fontSize = 13.sp,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 14.dp)
+                    modifier = Modifier.padding(bottom = 10.dp)
                 )
+
+                // ── Handle selector chips ───────────────────────────────
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    handleOptions.forEach { (label, handle) ->
+                        val isSelected = selectedHandle == handle
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedHandle = handle },
+                            label = { Text(label, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF9C27B0).copy(alpha = 0.2f),
+                                selectedLabelColor = Color(0xFFCE93D8)
+                            )
+                        )
+                    }
+                }
 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
                 Spacer(modifier = Modifier.height(12.dp))
@@ -192,7 +225,8 @@ fun UpiAppPickerForContactDialog(
                                     context = context,
                                     packageName = app.packageName,
                                     phone = phone10,
-                                    name = contactName
+                                    name = contactName,
+                                    customHandle = selectedHandle
                                 )
                                 onDismissRequest()
                             }
@@ -205,7 +239,7 @@ fun UpiAppPickerForContactDialog(
                 // ── System UPI chooser fallback ───────────────────────────
                 OutlinedButton(
                     onClick = {
-                        launchSystemUpiChooser(context, phone10, contactName)
+                        launchSystemUpiChooser(context, phone10, contactName, selectedHandle)
                         onDismissRequest()
                     },
                     modifier = Modifier
@@ -235,18 +269,17 @@ fun UpiAppPickerForContactDialog(
 // ─── Launch helpers ───────────────────────────────────────────────────────────
 
 /**
- * Launches a specific UPI app with a pre-filled payment intent.
- * Uses `<phone10digit>@upi` as the VPA — most UPI apps resolve this to the
- * registered virtual payment address for that mobile number.
+ * Launches a specific UPI app with an app-tailored payment intent.
  */
 private fun launchUpiPayment(
     context: android.content.Context,
     packageName: String,
     phone: String,
-    name: String
+    name: String,
+    customHandle: String? = null
 ) {
-    val vpa = "$phone@upi"
-    val upiUri = buildUpiUri(vpa, name)
+    val vpa = com.hevincj.cashflow.utils.UpiIntentBuilder.resolveVpaForApp(packageName, phone, customHandle)
+    val upiUri = com.hevincj.cashflow.utils.UpiIntentBuilder.buildUpiUri(vpa, name)
 
     var launched = false
 
@@ -281,10 +314,11 @@ private fun launchUpiPayment(
 private fun launchSystemUpiChooser(
     context: android.content.Context,
     phone: String,
-    name: String
+    name: String,
+    customHandle: String? = null
 ) {
-    val vpa = "$phone@upi"
-    val upiUri = buildUpiUri(vpa, name)
+    val vpa = com.hevincj.cashflow.utils.UpiIntentBuilder.resolveVpaForApp("", phone, customHandle)
+    val upiUri = com.hevincj.cashflow.utils.UpiIntentBuilder.buildUpiUri(vpa, name)
     try {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(upiUri)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -296,12 +330,6 @@ private fun launchSystemUpiChooser(
     } catch (e: Exception) {
         e.printStackTrace()
     }
-}
-
-/** Builds a standard UPI payment URI with VPA and payee name. */
-private fun buildUpiUri(vpa: String, name: String): String {
-    val encodedName = Uri.encode(name)
-    return "upi://pay?pa=${Uri.encode(vpa)}&pn=$encodedName&cu=INR"
 }
 
 // ─── UI Components ────────────────────────────────────────────────────────────

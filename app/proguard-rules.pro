@@ -25,3 +25,14 @@
 
 # Keep local database entities to prevent Room mapping issues
 -keep class com.hevincj.cashflow.data.local.entity.** { *; }
+
+# Google MLKit Barcode Scanning & Google Play Services Vision preservation
+-keep class com.google.mlkit.** { *; }
+-keep interface com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+-keep class com.google.android.gms.internal.mlkit_vision_barcode.** { *; }
+-dontwarn com.google.android.gms.internal.mlkit_vision_barcode.**
+-keep class com.google.android.gms.vision.** { *; }
+-dontwarn com.google.android.gms.vision.**
+-keep class com.google.firebase.components.** { *; }
+-dontwarn com.google.firebase.components.**
