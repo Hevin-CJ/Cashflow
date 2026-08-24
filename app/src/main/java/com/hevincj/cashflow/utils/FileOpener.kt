@@ -1,5 +1,6 @@
 package com.hevincj.cashflow.utils
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -15,8 +16,9 @@ object FileOpener {
             "text/csv" -> listOf(
                 "text/csv",
                 "text/comma-separated-values",
-                "application/csv",
                 "application/vnd.ms-excel",
+                "application/csv",
+                "application/x-csv",
                 "text/plain",
                 "text/*",
                 "*/*"
@@ -51,27 +53,27 @@ object FileOpener {
     }
 
     /**
-     * Resiliently opens or shares a saved file URI by checking PackageManager across candidate
-     * MIME types before launching, falling back to ACTION_SEND if no direct viewer is matched.
+     * Resiliently opens a saved file URI by launching the Android system app chooser with
+     * ACTION_VIEW and read URI permissions across candidate MIME types, falling back to
+     * ACTION_SEND if no direct viewer is matched.
      */
     fun openFile(context: Context, uri: Uri, primaryMimeType: String) {
-        val packageManager = context.packageManager
         val candidates = getCandidateMimeTypes(primaryMimeType)
 
-        // 1. Try to find a direct viewer with candidate MIME types
+        // 1. Try launching the system chooser with candidate MIME types directly
         for (candidate in candidates) {
             try {
                 val viewIntent = buildViewIntent(uri, candidate)
-                val resolvedActivities = packageManager.queryIntentActivities(viewIntent, 0)
-                if (resolvedActivities.isNotEmpty()) {
-                    val chooser = Intent.createChooser(viewIntent, "Open file").apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(chooser)
-                    return
+                val chooserTitle = if (primaryMimeType == "text/csv") "Open CSV with" else "Open file with"
+                val chooser = Intent.createChooser(viewIntent, chooserTitle).apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
+                context.startActivity(chooser)
+                return
+            } catch (e: ActivityNotFoundException) {
+                CrashLogger.w("FileOpener", "No direct activity for candidate MIME: $candidate", e)
             } catch (e: Exception) {
-                CrashLogger.w("FileOpener", "Failed checking candidate MIME: $candidate", e)
+                CrashLogger.w("FileOpener", "Failed opening candidate MIME: $candidate", e)
             }
         }
 
@@ -79,7 +81,7 @@ object FileOpener {
         try {
             val shareIntent = buildShareIntent(uri, primaryMimeType)
             val chooser = Intent.createChooser(shareIntent, "Open or share file").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(chooser)
         } catch (e: Exception) {

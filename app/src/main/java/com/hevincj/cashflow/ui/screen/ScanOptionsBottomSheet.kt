@@ -988,6 +988,7 @@ private fun CardScannerView(
     var isScanningEnabled by remember { mutableStateOf(true) }
     val currentScanningEnabled by rememberUpdatedState(isScanningEnabled)
     var cameraControlState by remember { mutableStateOf<CameraControl?>(null) }
+    var cameraInfoState by remember { mutableStateOf<CameraInfo?>(null) }
 
     // Async timeout-guarded CameraProvider initialization (3 seconds max)
     LaunchedEffect(retryCount) {
@@ -1015,24 +1016,39 @@ private fun CardScannerView(
         }
     }
 
+    // Connect flash controls with callback and retry handling
+    LaunchedEffect(isFlashActive, cameraControlState, cameraInfoState) {
+        val control = cameraControlState
+        val info = cameraInfoState
+        if (control != null && (info == null || info.hasFlashUnit())) {
+            try {
+                val future = control.enableTorch(isFlashActive)
+                com.google.common.util.concurrent.Futures.addCallback(
+                    future,
+                    object : com.google.common.util.concurrent.FutureCallback<Void> {
+                        override fun onSuccess(result: Void?) {}
+                        override fun onFailure(t: Throwable) {
+                            com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Torch activation callback error: ${t.message}", t)
+                        }
+                    },
+                    androidx.core.content.ContextCompat.getMainExecutor(context)
+                )
+            } catch (e: Throwable) {
+                com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Torch activation failed: ${e.message}", e)
+            }
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             try {
+                cameraControlState?.enableTorch(false)
                 cameraExecutor.shutdown()
                 barcodeScanner?.close()
                 cameraProviderState?.unbindAll()
             } catch (e: Throwable) {
                 com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Cleanup error: ${e.message}", e)
             }
-        }
-    }
-
-    // Connect flash controls
-    LaunchedEffect(isFlashActive, cameraControlState) {
-        try {
-            cameraControlState?.enableTorch(isFlashActive)
-        } catch (e: Throwable) {
-            com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Torch activation failed: ${e.message}", e)
         }
     }
 
@@ -1103,7 +1119,14 @@ private fun CardScannerView(
             key(retryCount) {
                 AndroidView(
                     factory = { ctx ->
-                        val previewView = PreviewView(ctx)
+                        val previewView = PreviewView(ctx).apply {
+                            layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }
                         val cameraProvider = cameraProviderState!!
 
                         try {
@@ -1208,7 +1231,26 @@ private fun CardScannerView(
                                     imageAnalysis
                                 )
                                 cameraControlState = camera.cameraControl
+                                cameraInfoState = camera.cameraInfo
                                 onFlashControlReady(camera.cameraControl)
+
+                                if (isFlashActive && camera.cameraInfo.hasFlashUnit()) {
+                                    try {
+                                        val torchFuture = camera.cameraControl.enableTorch(true)
+                                        com.google.common.util.concurrent.Futures.addCallback(
+                                            torchFuture,
+                                            object : com.google.common.util.concurrent.FutureCallback<Void> {
+                                                override fun onSuccess(result: Void?) {}
+                                                override fun onFailure(t: Throwable) {
+                                                    com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Post-bind torch re-apply callback failure: ${t.message}", t)
+                                                }
+                                            },
+                                            androidx.core.content.ContextCompat.getMainExecutor(context)
+                                        )
+                                    } catch (e: Throwable) {
+                                        com.hevincj.cashflow.utils.CrashLogger.w("CardScannerView", "Post-bind torch re-apply failed", e)
+                                    }
+                                }
                             }
                         } catch (e: Throwable) {
                             cameraError = "Failed to start camera: ${e.localizedMessage ?: "Unknown hardware error"}"

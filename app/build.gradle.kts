@@ -30,8 +30,8 @@ android {
         applicationId = "com.hevincj.cashflow"
         minSdk = 29
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.1.8"
+        versionCode = 19
+        versionName = "1.1.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -606,15 +606,6 @@ fun TransactionItem(
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(Icons.Rounded.CloudOff, contentDescription = "Not Synced", tint = Color.Gray, modifier = Modifier.size(16.dp))
                     }
-                    if (!transaction.description.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Rounded.Description,
-                            contentDescription = "Has Note",
-                            tint = Color(0xFF635BFF).copy(alpha = 0.75f),
-                            modifier = Modifier.size(15.dp)
-                        )
-                    }
                     // FIX: Cache status calculation inside Domain layer map block in a real app,
                     // but for inline rendering stability, this evaluation is kept minimal.
                     if (transaction.description?.contains("Batch scanned barcode") == true) {

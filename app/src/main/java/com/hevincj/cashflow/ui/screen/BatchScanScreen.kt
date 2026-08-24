@@ -33,6 +33,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.camera.core.CameraControl
+import androidx.camera.core.CameraInfo
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -239,6 +240,7 @@ private fun BatchScanContent(
 
     var isFlashActive by remember { mutableStateOf(false) }
     var cameraControlState by remember { mutableStateOf<CameraControl?>(null) }
+    var cameraInfoState by remember { mutableStateOf<CameraInfo?>(null) }
     var cameraProviderState by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var isInitializingCamera by remember { mutableStateOf(true) }
     var cameraError by remember { mutableStateOf<String?>(null) }
@@ -269,11 +271,26 @@ private fun BatchScanContent(
         }
     }
 
-    LaunchedEffect(isFlashActive, cameraControlState) {
-        try {
-            cameraControlState?.enableTorch(isFlashActive)
-        } catch (e: Throwable) {
-            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation failed: ${e.message}", e)
+    // Connect flash controls with callback and retry handling
+    LaunchedEffect(isFlashActive, cameraControlState, cameraInfoState) {
+        val control = cameraControlState
+        val info = cameraInfoState
+        if (control != null && (info == null || info.hasFlashUnit())) {
+            try {
+                val future = control.enableTorch(isFlashActive)
+                com.google.common.util.concurrent.Futures.addCallback(
+                    future,
+                    object : com.google.common.util.concurrent.FutureCallback<Void> {
+                        override fun onSuccess(result: Void?) {}
+                        override fun onFailure(t: Throwable) {
+                            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation callback error: ${t.message}", t)
+                        }
+                    },
+                    androidx.core.content.ContextCompat.getMainExecutor(context)
+                )
+            } catch (e: Throwable) {
+                com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation failed: ${e.message}", e)
+            }
         }
     }
 
@@ -297,6 +314,7 @@ private fun BatchScanContent(
     DisposableEffect(Unit) {
         onDispose {
             try {
+                cameraControlState?.enableTorch(false)
                 cameraExecutor.shutdown()
                 barcodeScanner?.close()
                 cameraProviderState?.unbindAll()
@@ -335,7 +353,14 @@ private fun BatchScanContent(
             if (cameraProviderState != null) {
                 AndroidView(
                     factory = { ctx ->
-                        val previewView = PreviewView(ctx)
+                        val previewView = PreviewView(ctx).apply {
+                            layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }
                         val cameraProvider = cameraProviderState!!
 
                         try {
@@ -397,6 +422,25 @@ private fun BatchScanContent(
                                     imageAnalysis
                                 )
                                 cameraControlState = camera.cameraControl
+                                cameraInfoState = camera.cameraInfo
+
+                                if (isFlashActive && camera.cameraInfo.hasFlashUnit()) {
+                                    try {
+                                        val torchFuture = camera.cameraControl.enableTorch(true)
+                                        com.google.common.util.concurrent.Futures.addCallback(
+                                            torchFuture,
+                                            object : com.google.common.util.concurrent.FutureCallback<Void> {
+                                                override fun onSuccess(result: Void?) {}
+                                                override fun onFailure(t: Throwable) {
+                                                    com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Post-bind torch re-apply callback failure: ${t.message}", t)
+                                                }
+                                            },
+                                            androidx.core.content.ContextCompat.getMainExecutor(context)
+                                        )
+                                    } catch (e: Throwable) {
+                                        com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Post-bind torch re-apply failed", e)
+                                    }
+                                }
                             } else {
                                 com.hevincj.cashflow.utils.CrashLogger.e("BatchScanScreen", "No available camera found on device")
                             }

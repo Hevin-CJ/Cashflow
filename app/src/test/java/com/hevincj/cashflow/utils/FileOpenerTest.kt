@@ -1,7 +1,5 @@
 package com.hevincj.cashflow.utils
 
-import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -18,14 +16,17 @@ class FileOpenerTest {
             listOf(
                 "text/csv",
                 "text/comma-separated-values",
-                "application/csv",
                 "application/vnd.ms-excel",
+                "application/csv",
+                "application/x-csv",
                 "text/plain",
                 "text/*",
                 "*/*"
             ),
             candidates
         )
+        assertTrue("Primary CSV MIME must be first", candidates.first() == "text/csv")
+        assertTrue("Wildcard must be last fallback", candidates.last() == "*/*")
     }
 
     @Test
