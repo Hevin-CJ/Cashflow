@@ -12,6 +12,11 @@
 #   public *;
 #}
 
+# Enable aggressive R8 optimization passes and bytecode repackaging
+-optimizationpasses 5
+-allowaccessmodification
+-repackageclasses 'com.hevincj.cashflow.obf'
+
 # Keep attributes for Crashlytics to map stack trace line numbers
 -keepattributes SourceFile,LineNumberTable
 

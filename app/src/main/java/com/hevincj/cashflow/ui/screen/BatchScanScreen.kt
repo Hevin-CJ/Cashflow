@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -271,26 +272,33 @@ private fun BatchScanContent(
         }
     }
 
-    // Connect flash controls with callback and retry handling
-    LaunchedEffect(isFlashActive, cameraControlState, cameraInfoState) {
+    fun toggleTorch() {
         val control = cameraControlState
         val info = cameraInfoState
-        if (control != null && (info == null || info.hasFlashUnit())) {
-            try {
-                val future = control.enableTorch(isFlashActive)
-                com.google.common.util.concurrent.Futures.addCallback(
-                    future,
-                    object : com.google.common.util.concurrent.FutureCallback<Void> {
-                        override fun onSuccess(result: Void?) {}
-                        override fun onFailure(t: Throwable) {
-                            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation callback error: ${t.message}", t)
-                        }
-                    },
-                    androidx.core.content.ContextCompat.getMainExecutor(context)
-                )
-            } catch (e: Throwable) {
-                com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch activation failed: ${e.message}", e)
-            }
+        if (control == null) {
+            Toast.makeText(context, "Camera is initializing...", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (info != null && !info.hasFlashUnit()) {
+            Toast.makeText(context, "Flashlight is not supported on this camera", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val targetState = !isFlashActive
+        isFlashActive = targetState
+        try {
+            val future = control.enableTorch(targetState)
+            com.google.common.util.concurrent.Futures.addCallback(
+                future,
+                object : com.google.common.util.concurrent.FutureCallback<Void> {
+                    override fun onSuccess(result: Void?) {}
+                    override fun onFailure(t: Throwable) {
+                        com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch toggle callback error: ${t.message}", t)
+                    }
+                },
+                androidx.core.content.ContextCompat.getMainExecutor(context)
+            )
+        } catch (e: Throwable) {
+            com.hevincj.cashflow.utils.CrashLogger.w("BatchScanScreen", "Torch toggle failed: ${e.message}", e)
         }
     }
 
@@ -301,7 +309,13 @@ private fun BatchScanContent(
             val options = com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
                 .setBarcodeFormats(
                     Barcode.FORMAT_UPC_A,
-                    Barcode.FORMAT_EAN_13
+                    Barcode.FORMAT_UPC_E,
+                    Barcode.FORMAT_EAN_13,
+                    Barcode.FORMAT_EAN_8,
+                    Barcode.FORMAT_CODE_128,
+                    Barcode.FORMAT_CODE_39,
+                    Barcode.FORMAT_CODE_93,
+                    Barcode.FORMAT_QR_CODE
                 )
                 .build()
             BarcodeScanning.getClient(options)
@@ -383,22 +397,9 @@ private fun BatchScanContent(
                                                 barcodeValue.startsWith("www.", ignoreCase = true) ||
                                                 barcodeValue.contains("://", ignoreCase = true) ||
                                                 barcodeValue.startsWith("upi://", ignoreCase = true)
-                                        val isFullBarcode = barcodeValue.length >= 12 && barcodeValue.all { it.isDigit() }
-                                        if (!isUrl && isFullBarcode) {
-                                            val rect = barcode.boundingBox
-                                            if (rect != null) {
-                                                val marginX = imageProxy.width * 0.15f
-                                                val marginY = imageProxy.height * 0.20f
-                                                val isFullyInside = rect.left >= marginX &&
-                                                        rect.right <= (imageProxy.width - marginX) &&
-                                                        rect.top >= marginY &&
-                                                        rect.bottom <= (imageProxy.height - marginY)
-
-                                                if (isFullyInside) {
-                                                    coroutineScope.launch(Dispatchers.Main) {
-                                                        viewModel.onBarcodeScanned(barcodeValue)
-                                                    }
-                                                }
+                                        if (!isUrl && barcodeValue.length in 7..64) {
+                                            coroutineScope.launch(Dispatchers.Main) {
+                                                viewModel.onBarcodeScanned(barcodeValue)
                                             }
                                         }
                                     }
@@ -488,7 +489,7 @@ private fun BatchScanContent(
                 }
 
                 Text(
-                    text = "Align 12-Digit Barcode Here",
+                    text = "Align Barcode Here",
                     color = Color.White,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
@@ -512,7 +513,7 @@ private fun BatchScanContent(
                     )
                     .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
                     .clickable {
-                        isFlashActive = !isFlashActive
+                        toggleTorch()
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -529,7 +530,8 @@ private fun BatchScanContent(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(480.dp)
+                .weight(1.1f)
+                .imePadding()
                 .navigationBarsPadding()
                 .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
             colors = CardDefaults.cardColors(containerColor = CardBackground),

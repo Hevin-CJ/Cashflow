@@ -68,7 +68,7 @@ fun ReceiptScanScreen(
                 val bytes = readBytesFromUri(context, uri)
                 imageBytes = bytes
                 if (bytes != null) {
-                    selectedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    selectedBitmap = com.hevincj.cashflow.utils.ImageSamplingUtils.decodeSampledBitmapFromByteArray(bytes)
                 }
             }
         }

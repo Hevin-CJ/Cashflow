@@ -86,6 +86,14 @@ android {
             )
         }
     }
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = true
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -94,11 +102,13 @@ android {
         resources {
             excludes += listOf(
                 "/META-INF/{AL2.0,LGPL2.1}",
-                "/META-INF/DEPENDENCIES",
-                "/META-INF/LICENSE*",
-                "/META-INF/NOTICE*",
-                "/META-INF/INDEX.LIST",
-                "/META-INF/*.version"
+                "META-INF/**/DEPENDENCIES*",
+                "META-INF/**/LICENSE*",
+                "META-INF/**/NOTICE*",
+                "META-INF/**/INDEX.LIST",
+                "META-INF/**/*.version",
+                "META-INF/**/*.properties",
+                "META-INF/**/*.txt"
             )
         }
     }

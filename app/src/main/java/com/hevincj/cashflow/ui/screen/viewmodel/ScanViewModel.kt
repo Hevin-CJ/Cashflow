@@ -49,113 +49,58 @@ class ScanViewModel @Inject constructor(
     val eventFlow: SharedFlow<ScanEvent> = _eventFlow.asSharedFlow()
 
     private val lastScannedMap = mutableMapOf<String, Long>()
-    private var lastGlobalScanTime = 0L
-    private var lastScannedBarcode: String? = null
-    private var consecutiveScanCount = 0
 
     fun onBarcodeScanned(barcode: String) {
-        if (barcode.length < 12 || !barcode.all { it.isDigit() }) return
+        if (barcode.isBlank() || barcode.length < 7 || barcode.length > 64) return
+        val isUrl = barcode.startsWith("http://", ignoreCase = true) ||
+                barcode.startsWith("https://", ignoreCase = true) ||
+                barcode.startsWith("www.", ignoreCase = true) ||
+                barcode.contains("://", ignoreCase = true) ||
+                barcode.startsWith("upi://", ignoreCase = true)
+        if (isUrl) return
 
         val currentTime = System.currentTimeMillis()
-
-        // 1. Global Scan Cooldown (1.5 seconds)
-        if (currentTime - lastGlobalScanTime < 1500) return
-
-        // 2. Per-barcode Cooldown (2 seconds)
         val lastTime = lastScannedMap[barcode] ?: 0L
-        if (currentTime - lastTime <= 2000) return
+        if (currentTime - lastTime < 1000L) return
 
-        // 3. Consecutive Frame Verification (3 frames)
-        if (barcode == lastScannedBarcode) {
-            consecutiveScanCount++
-        } else {
-            lastScannedBarcode = barcode
-            consecutiveScanCount = 1
-        }
-
-        if (consecutiveScanCount < 3) return
-
-        // Confirmed scan! Reset stabilization counters and update cooldown times
-        consecutiveScanCount = 0
-        lastScannedBarcode = null
-        lastGlobalScanTime = currentTime
         lastScannedMap[barcode] = currentTime
 
         val currentState = _state.value
-        if (currentState.addBarcodeOnce) {
-            if (currentState.scannedCodes.contains(barcode)) {
-                // If already scanned, ignore subsequent scans (return immediately, do not toggle/delete)
-                return
-            } else {
-                // Add
-                _state.update { state ->
-                    val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
-                    val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
-                    state.copy(
-                        scannedCodes = updatedCodes.toImmutableList(),
-                        resolvingCodes = updatedResolving.toImmutableList()
-                    )
-                }
-                _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
-                updateCalculatedSum()
+        if (currentState.addBarcodeOnce && currentState.scannedCodes.contains(barcode)) {
+            return
+        }
 
-                // Real-time lookup
-                viewModelScope.launch {
-                    try {
-                        val result = scanRepository.lookupBarcode(barcode)
-                        if (result != null) {
-                            _state.update { state ->
-                                val updatedProducts = state.scannedProducts.toMutableMap().apply {
-                                    put(barcode, result)
-                                }
-                                state.copy(scannedProducts = updatedProducts.toImmutableMap())
-                            }
-                        }
-                    } catch (e: Exception) {
-                        // Safe fallback
-                    } finally {
-                        _state.update { state ->
-                            val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
-                            state.copy(resolvingCodes = finalResolving.toImmutableList())
-                        }
-                        updateCalculatedSum()
-                    }
-                }
-            }
-        } else {
-            // Add multiple times
-            _state.update { state ->
-                val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
-                val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
-                state.copy(
-                    scannedCodes = updatedCodes.toImmutableList(),
-                    resolvingCodes = updatedResolving.toImmutableList()
-                )
-            }
-            _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
-            updateCalculatedSum()
+        _state.update { state ->
+            val updatedCodes = state.scannedCodes.toMutableList().apply { add(barcode) }
+            val updatedResolving = state.resolvingCodes.toMutableList().apply { add(barcode) }
+            state.copy(
+                scannedCodes = updatedCodes.toImmutableList(),
+                resolvingCodes = updatedResolving.toImmutableList()
+            )
+        }
+        _eventFlow.tryEmit(ScanEvent.BeepAndVibrate)
+        updateCalculatedSum()
 
-            // Real-time lookup
-            viewModelScope.launch {
-                try {
-                    val result = scanRepository.lookupBarcode(barcode)
-                    if (result != null) {
-                        _state.update { state ->
-                            val updatedProducts = state.scannedProducts.toMutableMap().apply {
-                                put(barcode, result)
-                            }
-                            state.copy(scannedProducts = updatedProducts.toImmutableMap())
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Safe fallback
-                } finally {
+        // Real-time lookup
+        viewModelScope.launch {
+            try {
+                val result = scanRepository.lookupBarcode(barcode)
+                if (result != null) {
                     _state.update { state ->
-                        val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
-                        state.copy(resolvingCodes = finalResolving.toImmutableList())
+                        val updatedProducts = state.scannedProducts.toMutableMap().apply {
+                            put(barcode, result)
+                        }
+                        state.copy(scannedProducts = updatedProducts.toImmutableMap())
                     }
-                    updateCalculatedSum()
                 }
+            } catch (_: Exception) {
+                // Safe fallback
+            } finally {
+                _state.update { state ->
+                    val finalResolving = state.resolvingCodes.toMutableList().apply { remove(barcode) }
+                    state.copy(resolvingCodes = finalResolving.toImmutableList())
+                }
+                updateCalculatedSum()
             }
         }
     }

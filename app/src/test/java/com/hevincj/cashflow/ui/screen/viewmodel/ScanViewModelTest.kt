@@ -53,15 +53,15 @@ class ScanViewModelTest {
 
     @Test
     fun testBarcodeScannedIgnoresShortBarcode() = runTest {
-        scanBarcode("12345678901") // Too short (< 12)
+        scanBarcode("12345") // Too short (< 7)
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.scannedCodes.isEmpty())
     }
 
     @Test
-    fun testBarcodeScannedIgnoresNonDigitBarcode() = runTest {
-        scanBarcode("89012345678a") // Contains letter but length 12
+    fun testBarcodeScannedIgnoresUrlBarcode() = runTest {
+        scanBarcode("https://example.com/product")
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.scannedCodes.isEmpty())

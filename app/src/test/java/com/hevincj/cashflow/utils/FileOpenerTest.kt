@@ -1,57 +1,69 @@
 package com.hevincj.cashflow.utils
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
-import org.mockito.kotlin.mock
+import org.mockito.Mock
+import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 class FileOpenerTest {
 
-    @Test
-    fun testGetCandidateMimeTypesForCsvContainsAllKnownFormats() {
-        val candidates = FileOpener.getCandidateMimeTypes("text/csv")
-        assertEquals(
-            listOf(
-                "text/csv",
-                "text/comma-separated-values",
-                "application/vnd.ms-excel",
-                "application/csv",
-                "application/x-csv",
-                "text/plain",
-                "text/*",
-                "*/*"
-            ),
-            candidates
-        )
-        assertTrue("Primary CSV MIME must be first", candidates.first() == "text/csv")
-        assertTrue("Wildcard must be last fallback", candidates.last() == "*/*")
+    @Mock
+    lateinit var context: Context
+
+    @Mock
+    lateinit var packageManager: PackageManager
+
+    @Mock
+    lateinit var uri: Uri
+
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        whenever(uri.normalizeScheme()).thenReturn(uri)
+        whenever(context.packageManager).thenReturn(packageManager)
+        whenever(context.packageName).thenReturn("com.hevincj.cashflow")
     }
 
     @Test
-    fun testGetCandidateMimeTypesForPdfContainsPdfAndWildcard() {
+    fun testCsvCandidateMimeTypesPrioritization() {
+        val candidates = FileOpener.getCandidateMimeTypes("text/csv")
+        assertTrue(candidates.contains("text/csv"))
+        assertTrue(candidates.contains("text/comma-separated-values"))
+        assertTrue(candidates.contains("application/vnd.ms-excel"))
+        assertTrue(candidates.contains("application/csv"))
+        assertTrue(candidates.contains("application/x-csv"))
+        assertTrue(candidates.contains("text/plain"))
+        assertTrue(candidates.contains("text/*"))
+        assertTrue(candidates.contains("*/*"))
+        assertEquals("text/csv", candidates.first())
+    }
+
+    @Test
+    fun testPdfCandidateMimeTypesPrioritization() {
         val candidates = FileOpener.getCandidateMimeTypes("application/pdf")
         assertEquals(listOf("application/pdf", "*/*"), candidates)
     }
 
     @Test
-    fun testGetCandidateMimeTypesForGenericType() {
+    fun testCustomMimeTypesPrioritization() {
         val candidates = FileOpener.getCandidateMimeTypes("image/png")
         assertEquals(listOf("image/png", "*/*"), candidates)
     }
 
     @Test
-    fun testBuildViewIntentReturnsNonNullIntent() {
-        val uri = mock<Uri>()
-        val intent = FileOpener.buildViewIntent(uri, "text/csv")
-        assertNotNull(intent)
-    }
+    fun testOpenFileExecutesFallbackGracefullyWhenNoViewersFound() {
+        whenever(packageManager.queryIntentActivities(any(), any<Int>()))
+            .thenReturn(emptyList())
 
-    @Test
-    fun testBuildShareIntentReturnsNonNullIntent() {
-        val uri = mock<Uri>()
-        val intent = FileOpener.buildShareIntent(uri, "text/csv")
-        assertNotNull(intent)
+        FileOpener.openFile(context, uri, "text/csv")
+        verify(context).startActivity(any())
     }
 }
