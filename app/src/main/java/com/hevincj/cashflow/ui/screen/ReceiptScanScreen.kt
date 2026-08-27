@@ -141,6 +141,7 @@ fun ReceiptScanScreen(
             // Select receipt button
             OutlinedButton(
                 onClick = { imagePickerLauncher.launch("image/*") },
+                enabled = !state.isAnalyzing,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF635BFF))
