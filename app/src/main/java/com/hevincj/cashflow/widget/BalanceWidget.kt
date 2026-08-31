@@ -11,8 +11,6 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.appwidget.action.actionStartActivity
-import androidx.glance.action.actionParametersOf
-import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -23,7 +21,9 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.hevincj.cashflow.MainActivity
 import com.hevincj.cashflow.data.local.dao.TransactionDao
+import com.hevincj.cashflow.data.local.entity.TransactionEntity
 import com.hevincj.cashflow.domain.models.TransactionType
+import com.hevincj.cashflow.utils.CrashLogger
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -32,6 +32,63 @@ import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlin.math.abs
+
+data class MonthlyBalanceSummary(
+    val balance: Double,
+    val income: Double,
+    val expense: Double,
+    val formattedBalance: String,
+    val formattedIncome: String,
+    val formattedExpense: String
+)
+
+object BalanceWidgetHelper {
+
+    const val ACTION_ADD_TRANSACTION = "com.hevincj.cashflow.ACTION_ADD_TRANSACTION"
+
+    fun formatBalance(balance: Double): String {
+        return if (balance < 0) {
+            String.format("-$%,.2f", abs(balance))
+        } else {
+            String.format("$%,.2f", balance)
+        }
+    }
+
+    fun calculateMonthlySummary(
+        transactions: List<TransactionEntity>,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        currentMonth: YearMonth = YearMonth.now(zoneId)
+    ): MonthlyBalanceSummary {
+        val filtered = transactions.filter { tx ->
+            val txYearMonth = YearMonth.from(
+                Instant.ofEpochMilli(tx.timestamp)
+                    .atZone(zoneId)
+                    .toLocalDate()
+            )
+            txYearMonth == currentMonth
+        }
+
+        val income = filtered.filter { it.type == TransactionType.INCOME }.sumOf { abs(it.amount) }
+        val expense = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { abs(it.amount) }
+        val balance = income - expense
+
+        return MonthlyBalanceSummary(
+            balance = balance,
+            income = income,
+            expense = expense,
+            formattedBalance = formatBalance(balance),
+            formattedIncome = String.format("+$%,.2f", income),
+            formattedExpense = String.format("-$%,.2f", expense)
+        )
+    }
+
+    fun createQuickAddIntent(context: Context): Intent {
+        return Intent(context, MainActivity::class.java).apply {
+            action = "com.hevincj.cashflow.ACTION_ADD_TRANSACTION"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+    }
+}
 
 class BalanceWidget : GlanceAppWidget() {
 
@@ -42,9 +99,14 @@ class BalanceWidget : GlanceAppWidget() {
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        var balance = 0.0
-        var income = 0.0
-        var expense = 0.0
+        var summary = MonthlyBalanceSummary(
+            balance = 0.0,
+            income = 0.0,
+            expense = 0.0,
+            formattedBalance = "$0.00",
+            formattedIncome = "+$0.00",
+            formattedExpense = "-$0.00"
+        )
 
         try {
             val entryPoint = EntryPointAccessors.fromApplication(
@@ -52,44 +114,21 @@ class BalanceWidget : GlanceAppWidget() {
                 WidgetEntryPoint::class.java
             )
             val transactionDao = entryPoint.getTransactionDao()
-
-            // Fetch transactions from the database
             val transactions = transactionDao.getAllTransactionsList()
-
-            val zoneId = ZoneId.systemDefault()
-            val currentMonth = YearMonth.now()
-            val filtered = transactions.filter { tx ->
-                val txYearMonth = YearMonth.from(
-                    Instant.ofEpochMilli(tx.timestamp)
-                        .atZone(zoneId)
-                        .toLocalDate()
-                )
-                txYearMonth == currentMonth
-            }
-
-            income = filtered.filter { it.type == TransactionType.INCOME }.sumOf { abs(it.amount) }
-            expense = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { abs(it.amount) }
-            balance = income - expense
+            summary = BalanceWidgetHelper.calculateMonthlySummary(transactions)
         } catch (e: Exception) {
-            e.printStackTrace()
+            CrashLogger.w("BalanceWidget", "Error calculating balance widget summary: ${e.message}", e)
         }
 
-        val balanceText = String.format("$%,.2f", balance)
-        val incomeText = String.format("+$%,.2f", income)
-        val expenseText = String.format("-$%,.2f", expense)
-
-        // Launch MainActivity with explicit Intent on click
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = "com.hevincj.cashflow.ACTION_ADD_TRANSACTION"
-        }
+        val intent = BalanceWidgetHelper.createQuickAddIntent(context)
         val quickAddAction = actionStartActivity(intent)
 
         provideContent {
             GlanceTheme {
                 WidgetContent(
-                    balance = balanceText,
-                    income = incomeText,
-                    expense = expenseText,
+                    balance = summary.formattedBalance,
+                    income = summary.formattedIncome,
+                    expense = summary.formattedExpense,
                     quickAddAction = quickAddAction
                 )
             }

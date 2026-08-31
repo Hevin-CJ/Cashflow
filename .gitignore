@@ -43,5 +43,5 @@ execution/
 .kotlin/errors
 Configure
 LICENSE
-*.png
 /assets
+/screen.png

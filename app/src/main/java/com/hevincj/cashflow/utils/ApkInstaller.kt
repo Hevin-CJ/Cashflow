@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileInputStream
@@ -36,6 +35,22 @@ object ApkInstaller {
     }
 
     /**
+     * Creates configured SessionParams for PackageInstaller session.
+     */
+    fun createSessionParams(packageName: String): PackageInstaller.SessionParams {
+        return PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(packageName)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                setInstallScenario(PackageManager.INSTALL_SCENARIO_FAST)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                setInstallReason(PackageManager.INSTALL_REASON_USER)
+            }
+        }
+    }
+
+    /**
      * Installs the given APK file.
      * Uses session-based PackageInstaller on Android 12+ (API 31+) to enable seamless self-updates
      * without triggering Play Protect sideloading / biometric lock-screen prompts.
@@ -52,7 +67,7 @@ object ApkInstaller {
             if (sessionResult.isSuccess) {
                 return sessionResult
             }
-            com.hevincj.cashflow.utils.CrashLogger.w(TAG, "PackageInstaller session failed, falling back to ACTION_VIEW: ${sessionResult.exceptionOrNull()?.message}", sessionResult.exceptionOrNull())
+            CrashLogger.w(TAG, "PackageInstaller session failed, falling back to ACTION_VIEW: ${sessionResult.exceptionOrNull()?.message}", sessionResult.exceptionOrNull())
         }
 
         // Fallback to legacy Intent.ACTION_VIEW
@@ -62,15 +77,7 @@ object ApkInstaller {
     private fun installViaPackageInstallerSession(context: Context, apkFile: File): Result<Unit> {
         return try {
             val packageInstaller = context.packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-                setAppPackageName(context.packageName)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    setInstallReason(PackageManager.INSTALL_REASON_USER)
-                }
-            }
+            val params = createSessionParams(context.packageName)
 
             val sessionId = packageInstaller.createSession(params)
             val session = packageInstaller.openSession(sessionId)
@@ -103,15 +110,15 @@ object ApkInstaller {
                 activeSession.commit(pendingIntent.intentSender)
             }
 
-            com.hevincj.cashflow.utils.CrashLogger.i(TAG, "PackageInstaller session #$sessionId committed successfully")
+            CrashLogger.i(TAG, "PackageInstaller session #$sessionId committed successfully")
             Result.success(Unit)
         } catch (e: Exception) {
-            com.hevincj.cashflow.utils.CrashLogger.e(TAG, "PackageInstaller session exception", e)
+            CrashLogger.e(TAG, "PackageInstaller session exception", e)
             Result.failure(e)
         }
     }
 
-    private fun installViaActionView(context: Context, apkFile: File): Result<Unit> {
+    fun installViaActionView(context: Context, apkFile: File): Result<Unit> {
         return try {
             val apkUri = FileProvider.getUriForFile(
                 context,
@@ -123,11 +130,13 @@ object ApkInstaller {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
 
             context.startActivity(intent)
             Result.success(Unit)
         } catch (e: Exception) {
+            CrashLogger.e(TAG, "Failed to launch ACTION_VIEW for APK install", e)
             Result.failure(e)
         }
     }
