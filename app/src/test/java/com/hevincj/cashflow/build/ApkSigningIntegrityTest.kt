@@ -2,6 +2,7 @@ package com.hevincj.cashflow.build
 
 import android.content.Context
 import com.hevincj.cashflow.utils.ApkInstaller
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -65,8 +66,11 @@ class ApkSigningIntegrityTest {
     }
 
     @Test
-    fun testApkInstallerSessionParamsContract() {
-        val params = ApkInstaller.createSessionParams("com.hevincj.cashflow")
-        assertNotNull("SessionParams must be created", params)
+    fun testApkInstallerIntentContract() {
+        val mockUri = org.mockito.Mockito.mock(android.net.Uri::class.java)
+        val intent = ApkInstaller.createInstallIntent(mockContext, mockUri)
+        assertNotNull("Install intent must be created", intent)
+        assertTrue(intent is android.content.Intent)
+        assertEquals("application/vnd.android.package-archive", ApkInstaller.APK_MIME_TYPE)
     }
 }

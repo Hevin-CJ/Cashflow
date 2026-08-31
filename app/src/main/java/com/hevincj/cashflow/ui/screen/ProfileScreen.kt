@@ -349,7 +349,12 @@ fun ProfileScreen(
                 if (!com.hevincj.cashflow.utils.ApkInstaller.canRequestPackageInstalls(context)) {
                     com.hevincj.cashflow.utils.ApkInstaller.openInstallPermissionSettings(context)
                 } else {
-                    com.hevincj.cashflow.utils.ApkInstaller.installApk(context, apkFile)
+                    val result = com.hevincj.cashflow.utils.ApkInstaller.installApk(context, apkFile)
+                    result.onFailure { error ->
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Unable to start installation: ${error.localizedMessage ?: "Unknown error"}")
+                        }
+                    }
                 }
             }
         )
